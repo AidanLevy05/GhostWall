@@ -20,7 +20,7 @@ BRUTE_THRESHOLD = 10
 BRUTE_WINDOW = 10
 
 # don't fire the same event twice in a row for the same IP
-COOLDOWN = 30
+COOLDOWN = 1
 
 DEBUG = os.getenv("SCANNER_DEBUG", "0").strip() == "1"
 
