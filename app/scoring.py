@@ -2,7 +2,12 @@
 Threat scoring engine for GhostWall.
 
 Computes a live Threat Score (0–100) from a metrics window derived from
-recent SQLite events, applies decay, and labels the result with a level.
+recent SQLite events, applies slow decay, and labels the result with a level.
+
+Decay behaviour: when no new activity is detected the score bleeds down
+slowly — roughly a 29-minute half-life — reaching 0 after ~3 hours of
+silence.  A new spike in activity immediately raises the score to the
+raw value.
 
 Levels
 ------
@@ -36,8 +41,9 @@ logger = logging.getLogger("ghostwall.scoring")
 # Configuration
 # ---------------------------------------------------------------------------
 
-SCORE_INTERVAL = 5.0   # seconds between score recalculations
-DECAY_FACTOR   = 0.97  # score × decay per interval when below raw score
+SCORE_INTERVAL = 5.0    # seconds between score recalculations
+DECAY_FACTOR   = 0.998  # score × decay per interval when idle (~29 min half-life)
+DECAY_FLOOR    = 0.5    # snap to 0 once score falls below this
 
 CAPS = {
     "fail_rate":        30.0,
@@ -174,9 +180,14 @@ async def scoring_loop() -> None:
             metrics = _compute_metrics(events)
             raw     = _compute_raw_score(metrics)
 
-            # Apply decay: score only drops gradually
+            # Slow decay: if activity has subsided, bleed the score down
+            # gradually toward 0 (~29-min half-life, ~3 hrs to reach 0).
+            # Score jumps up immediately to match raw if activity spikes.
             prev = _state.score
-            score = max(raw, prev * DECAY_FACTOR)
+            decayed = prev * DECAY_FACTOR
+            if decayed < DECAY_FLOOR:
+                decayed = 0.0
+            score = max(raw, decayed)
             score = round(min(score, 100.0), 2)
 
             level = _score_to_level(score)
