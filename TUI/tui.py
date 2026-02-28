@@ -454,21 +454,31 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
             break
         safe_addstr(stdscr, row, 3, f"{port:<5} {hits:<5} {role}", colors["base"])
 
-    safe_addstr(stdscr, left_top_h + 1, 3, f"Backend: {state.debrief.get('backend', '-')}", colors["title"])
+    backend_text = f"Backend: {state.debrief.get('backend', '-')}"
+    backend_lines = add_wrapped_text(
+        stdscr,
+        left_top_h + 1,
+        3,
+        backend_text,
+        width=max(10, left_w - 4),
+        attr=colors["title"],
+        max_lines=2,
+    )
     level = str(state.debrief.get("level", "low")).lower()
     level_color = colors["ok"] if level == "low" else colors["warn"] if level in {"medium", "high"} else colors["danger"]
-    safe_addstr(stdscr, left_top_h + 2, 3, f"Level: {level.upper()}", level_color)
+    level_row = left_top_h + 1 + backend_lines
+    safe_addstr(stdscr, level_row, 3, f"Level: {level.upper()}", level_color)
     llm_width = max(10, left_w - 4)
     used = add_wrapped_text(
         stdscr,
-        left_top_h + 3,
+        level_row + 1,
         3,
         str(state.debrief.get("summary", "")),
         width=llm_width,
         attr=colors["base"],
-        max_lines=max(1, left_bottom_h - 6),
+        max_lines=max(1, left_bottom_h - 7),
     )
-    row = left_top_h + 3 + used
+    row = level_row + 1 + used
     for item in state.debrief.get("actions", [])[:3]:
         if row >= height - 2:
             break

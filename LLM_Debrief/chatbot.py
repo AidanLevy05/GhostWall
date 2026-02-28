@@ -14,13 +14,34 @@ class LocalDebrief:
     def __init__(self) -> None:
         self.backend = os.getenv("GHOSTWALL_LLM_BACKEND", "heuristic").strip().lower()
         self.model = os.getenv("GHOSTWALL_LLM_MODEL", "llama3.2:3b").strip()
-        self.timeout_seconds = 10
+        self.timeout_seconds = int(os.getenv("GHOSTWALL_LLM_TIMEOUT", "90"))
+        self.last_error = ""
+        self.ollama_bin = self._resolve_ollama_bin()
+
+    def _resolve_ollama_bin(self) -> str | None:
+        env_bin = os.getenv("GHOSTWALL_OLLAMA_BIN", "").strip()
+        if env_bin:
+            return env_bin
+        found = shutil.which("ollama")
+        if found:
+            return found
+        for candidate in ("/usr/local/bin/ollama", "/usr/bin/ollama"):
+            if os.path.exists(candidate):
+                return candidate
+        return None
 
     def interpret(self, snapshot: dict[str, Any]) -> dict[str, Any]:
-        if self.backend == "ollama" and shutil.which("ollama"):
+        if self.backend == "ollama" and self.ollama_bin:
             parsed = self._interpret_with_ollama(snapshot)
             if parsed is not None:
                 return parsed
+            h = self._heuristic(snapshot)
+            h["backend"] = f"heuristic (ollama failed: {self.last_error or 'unknown'})"
+            return h
+        if self.backend == "ollama" and not self.ollama_bin:
+            h = self._heuristic(snapshot)
+            h["backend"] = "heuristic (ollama binary missing)"
+            return h
         return self._heuristic(snapshot)
 
     def _interpret_with_ollama(self, snapshot: dict[str, Any]) -> dict[str, Any] | None:
@@ -32,30 +53,37 @@ class LocalDebrief:
         )
         try:
             proc = subprocess.run(
-                ["ollama", "run", self.model, prompt],
+                [self.ollama_bin, "run", self.model],
+                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_seconds,
                 check=False,
             )
-        except Exception:
+        except Exception as exc:
+            self.last_error = f"exec:{exc}"
             return None
 
         if proc.returncode != 0:
+            self.last_error = f"rc={proc.returncode}:{(proc.stderr or '').strip()[:120]}"
             return None
 
         text = (proc.stdout or "").strip()
         if not text:
+            self.last_error = "empty_stdout"
             return None
         payload = _extract_json_text(text)
         if payload is None:
+            self.last_error = "non_json_output"
             return _text_fallback("ollama", text)
         try:
             out = json.loads(payload)
         except json.JSONDecodeError:
+            self.last_error = "json_decode_failed"
             return _text_fallback("ollama", text)
 
         if not isinstance(out, dict):
+            self.last_error = "json_not_object"
             return _text_fallback("ollama", text)
         summary = str(out.get("summary", "No summary"))
         level = str(out.get("level", "medium")).lower()
