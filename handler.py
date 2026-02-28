@@ -7,7 +7,8 @@ import random
 # Globals
 MAX_PORT = 65535
 PORT_SERVICES = {"ssh", "http", "ftp"}
-FREE_PORTS = []
+PORT_KEY = {} #int --> (int, int)
+FREE_PORTS = [] #int
 
 # Creates a port config file called "original_port_config.txt" with the format <name> <number>
 def create_port_config_backup():
@@ -36,13 +37,14 @@ def get_free_ports(start=1024, end=MAX_PORT):
         test_port_freedom(port)
     return FREE_PORTS
 
-def switch_port(original_port, free_port_1, free_port_2):
+def split_ports(original_port, free_port_1, free_port_2):
     if(len(FREE_PORTS)>=2):
         real = random.choice(FREE_PORTS)
         FREE_PORTS.remove(real)
         fake = random.choice(FREE_PORTS)
         FREE_PORTS.remove(fake)
-        return (real,fake)
+        kv = (real,fake)
+        PORT_KEY[original_port] = kv
     else:
         return(-1,-1)
 
