@@ -1,5 +1,5 @@
 """
-Adaptive defense module for SSH-Shield.
+Adaptive defense module for GhostWall.
 
 Receives the current threat level + top offender list and decides what
 actions to take.  By default runs in DRY-RUN mode (prints intended actions).
@@ -19,7 +19,7 @@ import os
 import subprocess
 import time
 
-logger = logging.getLogger("ssh-shield.defense")
+logger = logging.getLogger("ghostwall.defense")
 
 DRY_RUN: bool = os.environ.get("DRY_RUN", "true").lower() != "false"
 

@@ -1,5 +1,5 @@
 """
-Threat scoring engine for SSH-Shield.
+Threat scoring engine for GhostWall.
 
 Computes a live Threat Score (0–100) from a metrics window derived from
 recent SQLite events, applies decay, and labels the result with a level.
@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 
 import db
 
-logger = logging.getLogger("ssh-shield.scoring")
+logger = logging.getLogger("ghostwall.scoring")
 
 # ---------------------------------------------------------------------------
 # Configuration

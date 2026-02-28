@@ -3,7 +3,7 @@ version: "3.9"
 services:
   cowrie:
     image: cowrie/cowrie:latest
-    container_name: ssh-shield-cowrie
+    container_name: ghostwall-cowrie
     ports:
       - "2222:2222"
     volumes:
@@ -18,7 +18,7 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
-    container_name: ssh-shield-app
+    container_name: ghostwall-app
     ports:
       - "8000:8000"
     volumes:

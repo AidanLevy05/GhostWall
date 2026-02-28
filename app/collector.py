@@ -15,7 +15,7 @@ import time
 
 from db import insert_event
 
-logger = logging.getLogger("ssh-shield.collector")
+logger = logging.getLogger("ghostwall.collector")
 
 COWRIE_LOG_PATH = os.environ.get("COWRIE_LOG_PATH", "/cowrie-logs/cowrie.json")
 POLL_INTERVAL = 2.0  # seconds between tail checks
