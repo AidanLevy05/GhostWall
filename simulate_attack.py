@@ -149,11 +149,19 @@ def run_simulation(container: str, ips: list[str], n_events: int, delay: float) 
     print(f"  Log file  : {COWRIE_LOG}")
     print()
 
-    # Ensure the log directory exists inside the container
+    # Ensure the log directory exists and the log FILE exists before we write.
+    # Critical: the collector seeks to EOF when it first finds the file. If we
+    # create the file AND fill it in one shot, the collector sees all events as
+    # "already there" and skips them (score stays 0).  By touching the file
+    # first and waiting >2 s (one collector poll cycle), the collector sets its
+    # internal position to 0 (empty file) so every subsequent line is new.
     subprocess.run(
-        ["docker", "exec", container, "mkdir", "-p", "/cowrie/var/log/cowrie"],
+        ["docker", "exec", container, "sh", "-c",
+         f"mkdir -p /cowrie/var/log/cowrie && touch {COWRIE_LOG}"],
         capture_output=True,
     )
+    print("  Waiting 3 s for the collector to register the log file...")
+    time.sleep(3)
 
     sessions: dict[str, str] = {}   # ip -> current session id
     sent = 0
