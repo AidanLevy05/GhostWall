@@ -33,11 +33,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from Defense_Solutions.engine import build_defense_actions
 
 
-SEVERITY_WEIGHT = {
-    "connect.attempt": 1,
-    "arp.scan": 4,
-    "port.sweep": 6,
-    "brute.force": 8,
+BASE_EVENT_SCORE = {
+    "connect.attempt": 12,
+    "arp.scan": 28,
+    "port.sweep": 45,
+    "brute.force": 75,
 }
 
 
@@ -46,28 +46,62 @@ class DashboardState:
         self.started_at = time.time()
         self.total_events = 0
         self.event_counts: Counter[str] = Counter()
-        self.ip_stats: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {"score": 0, "events": 0, "ports": set(), "last_seen": 0.0}
-        )
-        self.recent_events: deque[dict[str, Any]] = deque(maxlen=200)
-        self.recent_actions: deque[dict[str, Any]] = deque(maxlen=100)
+        self.recent_events: deque[dict[str, Any]] = deque(maxlen=400)
+        self.recent_logs: deque[dict[str, Any]] = deque(maxlen=250)
+        self.recent_scores: deque[int] = deque(maxlen=300)
+        self.ip_last_seen: dict[str, float] = defaultdict(float)
+        self.recent_actions: deque[dict[str, Any]] = deque(maxlen=120)
+
+    def _score_event(self, event: dict[str, Any]) -> int:
+        event_type = str(event.get("type", "unknown"))
+        base = BASE_EVENT_SCORE.get(event_type, 10)
+
+        count = event.get("count", 0)
+        if isinstance(count, int):
+            base += min(20, max(0, count // 2))
+
+        ports = event.get("ports", [])
+        if isinstance(ports, list):
+            base += min(15, len(ports) * 2)
+
+        port = event.get("port")
+        if port == 22:
+            base += 5
+
+        return max(0, min(99, base))
+
+    def _response_for_score(self, score: int) -> tuple[str, str]:
+        if 0 <= score <= 19:
+            return ("Alert only", "ok")
+        if 20 <= score <= 49:
+            return ("Open honeypot 15m", "warn")
+        return ("Open honeypot 1h", "danger")
 
     def add_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type", "unknown"))
         src_ip = str(event.get("src_ip", "unknown"))
-        port = event.get("port")
         ts = float(event.get("timestamp", time.time()))
+        port = event.get("port", "-")
+        score = self._score_event(event)
+        response_text, response_color = self._response_for_score(score)
 
         self.total_events += 1
         self.event_counts[event_type] += 1
         self.recent_events.appendleft(event)
+        self.recent_scores.appendleft(score)
+        self.ip_last_seen[src_ip] = ts
 
-        ip_state = self.ip_stats[src_ip]
-        ip_state["events"] += 1
-        ip_state["last_seen"] = ts
-        ip_state["score"] += SEVERITY_WEIGHT.get(event_type, 1)
-        if isinstance(port, int):
-            ip_state["ports"].add(port)
+        self.recent_logs.appendleft(
+            {
+                "timestamp": ts,
+                "src_ip": src_ip,
+                "type": event_type,
+                "port": port,
+                "score": score,
+                "response": response_text,
+                "response_color": response_color,
+            }
+        )
 
         for action in build_defense_actions(event):
             self.recent_actions.appendleft(action)
@@ -79,13 +113,18 @@ class DashboardState:
         secs = seconds % 60
         return f"{hours:02}:{minutes:02}:{secs:02}"
 
-    def top_attackers(self, count: int = 8) -> list[tuple[str, dict[str, Any]]]:
-        ranked = sorted(
-            self.ip_stats.items(),
-            key=lambda item: (item[1]["score"], item[1]["events"]),
-            reverse=True,
-        )
-        return ranked[:count]
+    def average_weighted_threat(self) -> float:
+        if not self.recent_scores:
+            return 0.0
+        return sum(self.recent_scores) / len(self.recent_scores)
+
+    def current_attack_count(self, window_seconds: int = 30) -> int:
+        cutoff = time.time() - window_seconds
+        return sum(1 for ev in self.recent_events if float(ev.get("timestamp", 0.0)) >= cutoff)
+
+    def active_source_count(self, window_seconds: int = 60) -> int:
+        cutoff = time.time() - window_seconds
+        return sum(1 for _, ts in self.ip_last_seen.items() if ts >= cutoff)
 
 
 def parse_event_line(line: str) -> dict[str, Any] | None:
@@ -231,76 +270,67 @@ def draw_card(stdscr: curses.window, y: int, x: int, h: int, w: int, title: str,
 def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors: dict[str, int]) -> None:
     stdscr.erase()
     height, width = stdscr.getmaxyx()
-    if height < 20 or width < 90:
-        safe_addstr(stdscr, 1, 2, "Terminal too small. Resize to at least 90x20.", colors["warn"])
+    if height < 22 or width < 90:
+        safe_addstr(stdscr, 1, 2, "Terminal too small. Resize to at least 90x22.", colors["warn"])
         safe_addstr(stdscr, 3, 2, "Press q to quit.", colors["dim"])
         stdscr.refresh()
         return
 
-    title = " GHOSTWALL DEFENSE CONSOLE "
-    safe_addstr(stdscr, 0, max(0, (width - len(title)) // 2), title, colors["banner"])
-    safe_addstr(stdscr, 1, 2, f"Mode: {mode_label}", colors["base"])
-    safe_addstr(stdscr, 1, width - 22, f"Uptime {state.uptime()}", colors["base"])
+    top_h = 6
+    mid_h = max(8, (height - top_h - 2) // 2)
+    bot_h = height - top_h - mid_h - 1
 
-    card_y = 3
-    card_h = 4
-    card_w = width // 4 - 2
-    spacing = 2
-    left = 2
+    draw_card(stdscr, 0, 1, top_h, width - 2, "Row 1: Attack Summary", colors)
+    draw_card(stdscr, top_h, 1, mid_h, width - 2, "Row 2: Current Logs + Threat Level", colors)
+    draw_card(stdscr, top_h + mid_h, 1, bot_h, width - 2, "Row 3: Response Decisions", colors)
 
-    draw_card(stdscr, card_y, left, card_h, card_w, "Events", colors)
-    draw_card(stdscr, card_y, left + card_w + spacing, card_h, card_w, "Scans", colors)
-    draw_card(stdscr, card_y, left + (card_w + spacing) * 2, card_h, card_w, "Brute", colors)
-    draw_card(stdscr, card_y, left + (card_w + spacing) * 3, card_h, card_w, "Sources", colors)
+    avg_threat = state.average_weighted_threat()
+    avg_color = colors["ok"] if avg_threat < 20 else colors["warn"] if avg_threat < 50 else colors["danger"]
+    safe_addstr(stdscr, 1, 3, "GHOSTWALL THREAT CONTROL", colors["banner"])
+    safe_addstr(stdscr, 2, 3, f"Mode: {mode_label}   Uptime: {state.uptime()}", colors["base"])
+    safe_addstr(stdscr, 3, 3, f"Current attacks (30s): {state.current_attack_count()}", colors["chip_warn"])
+    safe_addstr(stdscr, 3, 34, f"Active sources (60s): {state.active_source_count()}", colors["chip_ok"])
+    safe_addstr(stdscr, 3, 66, f"Total events: {state.total_events}", colors["base"])
+    safe_addstr(stdscr, 4, 3, f"Average weighted threat: {avg_threat:05.2f}/99", avg_color)
+    safe_addstr(stdscr, 4, 45, "Policy: 0-19 ALERT  20-49 HONEYPOT(15m)  50-99 HONEYPOT(1h)", colors["title"])
 
-    safe_addstr(stdscr, card_y + 2, left + 3, str(state.total_events), colors["chip_ok"])
-    safe_addstr(stdscr, card_y + 2, left + card_w + spacing + 3, str(state.event_counts["port.sweep"] + state.event_counts["arp.scan"]), colors["chip_warn"])
-    safe_addstr(stdscr, card_y + 2, left + (card_w + spacing) * 2 + 3, str(state.event_counts["brute.force"]), colors["chip_bad"])
-    safe_addstr(stdscr, card_y + 2, left + (card_w + spacing) * 3 + 3, str(len(state.ip_stats)), colors["chip_ok"])
+    safe_addstr(stdscr, top_h + 1, 3, "TIME", colors["title"])
+    safe_addstr(stdscr, top_h + 1, 12, "SRC IP", colors["title"])
+    safe_addstr(stdscr, top_h + 1, 29, "EVENT", colors["title"])
+    safe_addstr(stdscr, top_h + 1, 44, "PORT", colors["title"])
+    safe_addstr(stdscr, top_h + 1, 52, "THREAT", colors["title"])
+    safe_addstr(stdscr, top_h + 1, 62, "AUTO RESPONSE", colors["title"])
 
-    body_y = card_y + card_h + 1
-    body_h = height - body_y - 1
-    left_w = width // 2 - 2
-    right_w = width - left_w - 4
+    mid_rows = max(1, mid_h - 3)
+    for idx, log in enumerate(list(state.recent_logs)[:mid_rows]):
+        row = top_h + 2 + idx
+        when = datetime.fromtimestamp(float(log["timestamp"])).strftime("%H:%M:%S")
+        score = int(log["score"])
+        response = str(log["response"])
+        event_color = colors["ok"] if score < 20 else colors["warn"] if score < 50 else colors["danger"]
+        safe_addstr(stdscr, row, 3, when, colors["base"])
+        safe_addstr(stdscr, row, 12, str(log["src_ip"]), colors["base"])
+        safe_addstr(stdscr, row, 29, str(log["type"]), event_color)
+        safe_addstr(stdscr, row, 44, str(log["port"]), colors["base"])
+        safe_addstr(stdscr, row, 52, f"{score:02d}/99", event_color)
+        safe_addstr(stdscr, row, 62, response, event_color)
 
-    draw_card(stdscr, body_y, 1, body_h // 2, left_w, "Top Sources", colors)
-    draw_card(stdscr, body_y, left_w + 2, body_h // 2, right_w, "Recent Events", colors)
-    draw_card(stdscr, body_y + body_h // 2, 1, body_h - body_h // 2, width - 2, "Defense Actions", colors)
+    base_y = top_h + mid_h
+    safe_addstr(stdscr, base_y + 1, 3, "DECISION BANDS:", colors["title"])
+    safe_addstr(stdscr, base_y + 2, 3, "0-19  -> Send alert only", colors["ok"])
+    safe_addstr(stdscr, base_y + 3, 3, "20-49 -> Open honeypot for 15 minutes (theoretical)", colors["warn"])
+    safe_addstr(stdscr, base_y + 4, 3, "50-99 -> Open honeypot for 1 hour (theoretical)", colors["danger"])
+    safe_addstr(stdscr, base_y + 1, 54, "LATEST DEFENSE ACTIONS", colors["title"])
 
-    safe_addstr(stdscr, body_y + 1, 3, "IP", colors["title"])
-    safe_addstr(stdscr, body_y + 1, 23, "Score", colors["title"])
-    safe_addstr(stdscr, body_y + 1, 31, "Events", colors["title"])
-    safe_addstr(stdscr, body_y + 1, 40, "Ports", colors["title"])
-    for idx, (ip, details) in enumerate(state.top_attackers(count=max(1, body_h // 2 - 3))):
-        row = body_y + 2 + idx
-        ports = ",".join(map(str, sorted(details["ports"])[:6]))
-        safe_addstr(stdscr, row, 3, ip, colors["base"])
-        safe_addstr(stdscr, row, 23, str(details["score"]), colors["warn"] if details["score"] < 20 else colors["danger"])
-        safe_addstr(stdscr, row, 31, str(details["events"]), colors["base"])
-        safe_addstr(stdscr, row, 40, ports if ports else "-", colors["dim"])
-
-    ev_x = left_w + 4
-    for idx, event in enumerate(list(state.recent_events)[: max(1, body_h // 2 - 3)]):
-        row = body_y + 2 + idx
-        event_type = str(event.get("type", "unknown"))
-        src_ip = str(event.get("src_ip", "unknown"))
-        port = event.get("port", "-")
-        when = datetime.fromtimestamp(float(event.get("timestamp", time.time()))).strftime("%H:%M:%S")
-        sev_color = colors["base"]
-        if event_type in ("port.sweep", "arp.scan"):
-            sev_color = colors["warn"]
-        if event_type == "brute.force":
-            sev_color = colors["danger"]
-        safe_addstr(stdscr, row, ev_x, f"{when}  {event_type:<14} {src_ip:<15} p:{port}", sev_color)
-
-    act_y = body_y + body_h // 2 + 1
-    for idx, action in enumerate(list(state.recent_actions)[: max(1, height - act_y - 2)]):
-        row = act_y + 1 + idx
-        severity = str(action.get("severity", "low"))
-        color = colors["ok"] if severity == "low" else colors["warn"] if severity == "medium" else colors["danger"]
-        summary = str(action.get("summary", ""))
+    action_rows = max(1, bot_h - 3)
+    for idx, action in enumerate(list(state.recent_actions)[:action_rows]):
+        row = base_y + 2 + idx
+        severity = str(action.get("severity", "low")).lower()
+        color = colors["ok"] if severity == "low" else colors["warn"] if severity in {"medium", "high"} else colors["danger"]
+        src = str(action.get("src_ip", "-"))
         source = str(action.get("source", "-"))
-        safe_addstr(stdscr, row, 3, f"[{severity.upper():6}] {source:<15} {summary}", color)
+        summary = str(action.get("summary", ""))
+        safe_addstr(stdscr, row, 54, f"[{severity.upper():8}] {src:<15} {source:<10} {summary}", color)
 
     safe_addstr(stdscr, height - 1, 2, "q quit  c clear  arrows/home/end no-op", colors["dim"])
     stdscr.refresh()
