@@ -1,0 +1,5 @@
+asyncssh
+cryptography
+textual>=0.50.0
+anthropic
+paramiko

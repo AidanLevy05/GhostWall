@@ -1,40 +1,16 @@
 services:
-  ghostwall-cowrie:
-    image: cowrie/cowrie:latest
-    container_name: ghostwall-cowrie
+  ghostwall:
+    build: .
+    container_name: ghostwall
     ports:
-      - "2222:2222"
-    volumes:
-      - cowrie-logs:/cowrie/var/log/cowrie
+      - "22:22"    # SSH honeypot
+      - "21:21"    # FTP honeypot
+      - "23:23"    # Telnet honeypot
     environment:
-      - COWRIE_TELNET_ENABLED=no
-    restart: unless-stopped
-    networks:
-      - shield-net
-
-  ghostwall-app:
-    build:
-      context: ./app
-      dockerfile: Dockerfile
-    container_name: ghostwall-app
-    ports:
-      - "8000:8000"
-    volumes:
-      - cowrie-logs:/cowrie-logs:ro
-    environment:
-      - COWRIE_LOG_PATH=/cowrie-logs/cowrie.json
-      - DB_PATH=/data/shield.db
       - DRY_RUN=true
-    depends_on:
-      - ghostwall-cowrie
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    cap_add:
+      - NET_ADMIN   # allows iptables when DRY_RUN=false
+    tty: true
+    stdin_open: true
     restart: unless-stopped
-    networks:
-      - shield-net
-
-volumes:
-  cowrie-logs:
-  app-data:
-
-networks:
-  shield-net:
-    driver: bridge
