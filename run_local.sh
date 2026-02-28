@@ -12,12 +12,23 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV="$SCRIPT_DIR/.venv"
+
 # Paths for local development
 export COWRIE_LOG_PATH="${COWRIE_LOG_PATH:-/tmp/ghostwall/cowrie.json}"
 export DB_PATH="${DB_PATH:-/tmp/ghostwall/shield.db}"
 export DRY_RUN="${DRY_RUN:-true}"
 
 mkdir -p /tmp/ghostwall
+
+# Create venv and install deps if needed
+if [ ! -f "$VENV/bin/uvicorn" ]; then
+    echo "  Setting up Python venv..."
+    python3 -m venv "$VENV"
+    "$VENV/bin/pip" install -q -r "$SCRIPT_DIR/app/requirements.txt"
+    echo "  Dependencies installed."
+fi
 
 echo "  GhostWall — local backend"
 echo "  Log path : $COWRIE_LOG_PATH"
@@ -29,5 +40,5 @@ echo "  In another terminal run:  python3 tui.py"
 echo "  To simulate an attack:    python3 simulate_attack.py"
 echo ""
 
-cd "$(dirname "$0")/app"
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+cd "$SCRIPT_DIR/app"
+exec "$VENV/bin/uvicorn" main:app --host 0.0.0.0 --port 8000
