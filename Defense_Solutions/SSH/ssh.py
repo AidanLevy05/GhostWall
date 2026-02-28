@@ -20,6 +20,8 @@ class SSHDefense:
         self._critical_threshold = 12
         self._block_seconds = 15 * 60
         self._cooldown = CooldownGate(cooldown_seconds=25)
+        self._cowrie_host = "127.0.0.1"
+        self._cowrie_port = 2222
 
     def _prune(self, src_ip: str, now: float) -> None:
         attempts = self._attempts[src_ip]
@@ -77,7 +79,10 @@ class SSHDefense:
                     make_action(
                         source="ssh/cowrie",
                         severity="critical",
-                        summary=f"SSH spray from {src_ip} crossed block threshold ({count}/{self._window_seconds}s).",
+                        summary=(
+                            f"SSH spray from {src_ip} crossed redirect threshold "
+                            f"({count}/{self._window_seconds}s); route to Cowrie."
+                        ),
                         src_ip=src_ip,
                         event_type=event_type,
                         commands=[
@@ -85,12 +90,14 @@ class SSHDefense:
                             "docker logs --tail 200 ghostwall-cowrie",
                         ],
                         confidence=0.98,
-                        tags=["ssh", "cowrie", "spray", "candidate-block"],
+                        tags=["ssh", "cowrie", "spray", "redirect"],
                         mitigation={
-                            "type": "block_ip",
+                            "type": "redirect_ssh",
                             "backend": "nftables",
                             "duration_seconds": self._block_seconds,
-                            "reason": "ssh_syn_spray",
+                            "reason": "ssh_syn_spray_redirect",
+                            "target_host": self._cowrie_host,
+                            "target_port": self._cowrie_port,
                         },
                     )
                 )

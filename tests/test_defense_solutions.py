@@ -51,6 +51,25 @@ class TestDefenseSolutions(unittest.TestCase):
             all_actions.extend(out)
         self.assertTrue(any(a["severity"] in {"high", "critical"} for a in all_actions))
 
+    def test_ssh_redirect_mitigation(self) -> None:
+        defense = SSHDefense()
+        src = "192.168.1.101"
+        all_actions = []
+        for i in range(1, 20):
+            out = defense.evaluate(
+                {
+                    "type": "connect.attempt",
+                    "src_ip": src,
+                    "port": 22,
+                    "timestamp": 6000.0 + i * 2.0,
+                }
+            )
+            all_actions.extend(out)
+        redirect_actions = [
+            a for a in all_actions if isinstance(a.get("mitigation"), dict) and a["mitigation"].get("type") == "redirect_ssh"
+        ]
+        self.assertGreaterEqual(len(redirect_actions), 1)
+
     def test_http_sweep_detection(self) -> None:
         defense = HTTPDefense()
         out = defense.evaluate(
