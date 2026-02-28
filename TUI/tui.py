@@ -20,6 +20,7 @@ import random
 import sys
 import threading
 import time
+import textwrap
 from collections import Counter, defaultdict, deque
 from datetime import datetime
 from pathlib import Path
@@ -218,6 +219,25 @@ def safe_addstr(win: curses.window, y: int, x: int, text: str, attr: int = 0) ->
     win.addstr(y, x, text[:available], attr)
 
 
+def add_wrapped_text(
+    win: curses.window,
+    y: int,
+    x: int,
+    text: str,
+    width: int,
+    attr: int = 0,
+    max_lines: int | None = None,
+) -> int:
+    if width <= 0:
+        return 0
+    lines = textwrap.wrap(text, width=width, break_long_words=True, break_on_hyphens=True) or [""]
+    if max_lines is not None:
+        lines = lines[:max_lines]
+    for idx, line in enumerate(lines):
+        safe_addstr(win, y + idx, x, line, attr)
+    return len(lines)
+
+
 def init_colors() -> dict[str, int]:
     curses.start_color()
     curses.use_default_colors()
@@ -276,13 +296,13 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
         stdscr.refresh()
         return
 
-    top_h = 6
+    top_h = 7
     mid_h = max(8, (height - top_h - 2) // 2)
     bot_h = height - top_h - mid_h - 1
 
-    draw_card(stdscr, 0, 1, top_h, width - 2, "Row 1: Attack Summary", colors)
-    draw_card(stdscr, top_h, 1, mid_h, width - 2, "Row 2: Current Logs + Threat Level", colors)
-    draw_card(stdscr, top_h + mid_h, 1, bot_h, width - 2, "Row 3: Response Decisions", colors)
+    draw_card(stdscr, 0, 1, top_h, width - 2, "Attack Summary", colors)
+    draw_card(stdscr, top_h, 1, mid_h, width - 2, "Current Logs + Threat Level", colors)
+    draw_card(stdscr, top_h + mid_h, 1, bot_h, width - 2, "Response Decisions", colors)
 
     avg_threat = state.average_weighted_threat()
     avg_color = colors["ok"] if avg_threat < 20 else colors["warn"] if avg_threat < 50 else colors["danger"]
@@ -292,7 +312,15 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
     safe_addstr(stdscr, 3, 34, f"Active sources (60s): {state.active_source_count()}", colors["chip_ok"])
     safe_addstr(stdscr, 3, 66, f"Total events: {state.total_events}", colors["base"])
     safe_addstr(stdscr, 4, 3, f"Average weighted threat: {avg_threat:05.2f}/99", avg_color)
-    safe_addstr(stdscr, 4, 45, "Policy: 0-19 ALERT  20-49 HONEYPOT(15m)  50-99 HONEYPOT(1h)", colors["title"])
+    add_wrapped_text(
+        stdscr,
+        4,
+        45,
+        "Policy: 0-19 ALERT, 20-49 HONEYPOT(15m), 50-99 HONEYPOT(1h)",
+        width=max(12, width - 48),
+        attr=colors["title"],
+        max_lines=2,
+    )
 
     safe_addstr(stdscr, top_h + 1, 3, "TIME", colors["title"])
     safe_addstr(stdscr, top_h + 1, 12, "SRC IP", colors["title"])
@@ -310,8 +338,8 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
         event_color = colors["ok"] if score < 20 else colors["warn"] if score < 50 else colors["danger"]
         safe_addstr(stdscr, row, 3, when, colors["base"])
         safe_addstr(stdscr, row, 12, str(log["src_ip"]), colors["base"])
-        safe_addstr(stdscr, row, 29, str(log["type"]), event_color)
-        safe_addstr(stdscr, row, 44, str(log["port"]), colors["base"])
+        safe_addstr(stdscr, row, 29, f"{str(log['type']):<15}", event_color)
+        safe_addstr(stdscr, row, 46, str(log["port"]), colors["base"])
         safe_addstr(stdscr, row, 52, f"{score:02d}/99", event_color)
         safe_addstr(stdscr, row, 62, response, event_color)
 
@@ -323,14 +351,26 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
     safe_addstr(stdscr, base_y + 1, 54, "LATEST DEFENSE ACTIONS", colors["title"])
 
     action_rows = max(1, bot_h - 3)
-    for idx, action in enumerate(list(state.recent_actions)[:action_rows]):
-        row = base_y + 2 + idx
+    row = base_y + 2
+    for action in list(state.recent_actions):
+        if row >= base_y + 2 + action_rows:
+            break
         severity = str(action.get("severity", "low")).lower()
         color = colors["ok"] if severity == "low" else colors["warn"] if severity in {"medium", "high"} else colors["danger"]
         src = str(action.get("src_ip", "-"))
         source = str(action.get("source", "-"))
         summary = str(action.get("summary", ""))
-        safe_addstr(stdscr, row, 54, f"[{severity.upper():8}] {src:<15} {source:<10} {summary}", color)
+        prefix = f"[{severity.upper():8}] {src:<15} {source:<10} "
+        summary_width = max(12, width - 56 - len(prefix))
+        wrapped = textwrap.wrap(summary, width=summary_width, break_long_words=True, break_on_hyphens=True) or [""]
+        safe_addstr(stdscr, row, 54, prefix + wrapped[0], color)
+        row += 1
+        indent = " " * len(prefix)
+        for continuation in wrapped[1:]:
+            if row >= base_y + 2 + action_rows:
+                break
+            safe_addstr(stdscr, row, 54, indent + continuation, color)
+            row += 1
 
     safe_addstr(stdscr, height - 1, 2, "q quit  c clear  arrows/home/end no-op", colors["dim"])
     stdscr.refresh()
