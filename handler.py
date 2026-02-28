@@ -2,6 +2,7 @@ import shutil
 import subprocess
 import os
 import socket
+import random
 
 # Globals
 MAX_PORT = 65535
@@ -28,14 +29,22 @@ def revert_port_config():
         pass
 
 # To be repeated after port movement
+# (-1,-1) designates error
 def get_free_ports(start=1024, end=MAX_PORT):
     FREE_PORTS = []
     for port in range(start, end+1):
         test_port_freedom(port)
     return FREE_PORTS
 
-def switch_port(current_port_name, current_port_number):
-    pass
+def switch_port(original_port, free_port_1, free_port_2):
+    if(len(FREE_PORTS)>=2):
+        real = random.choice(FREE_PORTS)
+        FREE_PORTS.remove(real)
+        fake = random.choice(FREE_PORTS)
+        FREE_PORTS.remove(fake)
+        return (real,fake)
+    else:
+        return(-1,-1)
 
 def test_port_freedom(port: int):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -45,20 +54,3 @@ def test_port_freedom(port: int):
             return True
         except OSError:
             return False
-
-
-
-FREE_PORTS = get_free_ports()
-print(FREE_PORTS)
-
-
-
-    
-    
-    
-    
-    
-# THE PROGRAM MUST ONLY TOUCH "PORT_CONFIGS'
-# BACKUP CONFIGS STAYS THE SAME AND WILL BE USED TO RESET PORT STATES AFTER OPERATION
-PORT_CONFIGS = "~/../../etc/services"
-BACKUP_CONFIGS = "~/../../etc/ssh/PORT_BACKUPS"
