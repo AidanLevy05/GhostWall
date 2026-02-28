@@ -1,11 +1,11 @@
 from scapy.all import sniff, ARP, TCP, IP, get_if_list
 from collections import defaultdict
-import time
-import queue
-import threading
 import json
-import sys
 import os
+import queue
+import sys
+import threading
+import time
 
 # how many ARP requests from one IP before we care
 ARP_THRESHOLD = 5
@@ -22,6 +22,8 @@ BRUTE_WINDOW = 10
 # don't fire the same event twice in a row for the same IP
 COOLDOWN = 30
 
+DEBUG = os.getenv("SCANNER_DEBUG", "0").strip() == "1"
+
 # filled in by main.py on startup
 event_queue = None
 
@@ -34,7 +36,6 @@ ip_activity = defaultdict(lambda: {
 })
 
 lock = threading.Lock()
-DEBUG = os.getenv("SCANNER_DEBUG", "0").strip() == "1"
 
 
 def debug(msg: str) -> None:
@@ -126,18 +127,28 @@ def handle_packet(pkt):
 def start(interface, q):
     global event_queue
     event_queue = q
+
     if interface not in get_if_list():
         raise SystemExit(
             f"Interface '{interface}' not found. Available: {', '.join(get_if_list())}"
         )
-    t = threading.Thread(target=lambda: sniff(iface=interface, prn=handle_packet, store=False), daemon=True)
+
+    def sniff_loop():
+        try:
+            sniff(iface=interface, prn=handle_packet, store=False)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[scanner] sniff failed: {exc}", file=sys.stderr, flush=True)
+            raise
+
+    t = threading.Thread(target=sniff_loop, daemon=True)
     t.start()
     debug(f"[scanner] listening on {interface}")
 
 
 if __name__ == "__main__":
     q = queue.Queue()
-    start(sys.argv[1] if len(sys.argv) > 1 else "eth0", q)
+    iface = sys.argv[1] if len(sys.argv) > 1 else "eth0"
+    start(iface, q)
     try:
         while True:
             print(json.dumps(q.get(), separators=(",", ":"), sort_keys=True), flush=True)

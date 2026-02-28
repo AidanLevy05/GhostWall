@@ -64,9 +64,14 @@ class DashboardState:
         self.debrief: dict[str, Any] = {
             "backend": "heuristic",
             "level": "low",
-            "summary": "Waiting for telemetry...",
+            "summary": "Waiting for a completed attack session...",
             "actions": ["No recommendations yet."],
         }
+        self.current_attack_events: deque[dict[str, Any]] = deque(maxlen=5000)
+        self.current_attack_started_at: float | None = None
+        self.current_attack_last_event_at: float | None = None
+        self.last_completed_attack: dict[str, Any] | None = None
+        self.last_report_generated_at: float | None = None
         self.service_by_port = {
             21: "FTP decoy",
             22: "SSH real",
@@ -138,6 +143,11 @@ class DashboardState:
                 f"{int(ts)} id={self.next_log_id - 1} src={src_ip} event={event_type} port={port} score={score} response={response_text}"
             )
 
+        if self.current_attack_started_at is None:
+            self.current_attack_started_at = ts
+        self.current_attack_last_event_at = ts
+        self.current_attack_events.append(event)
+
         for action in build_defense_actions(event):
             self.recent_actions.appendleft(action)
 
@@ -177,6 +187,41 @@ class DashboardState:
             "cowrie_events": self.cowrie_events,
             "top_event_type": self.event_counts.most_common(1)[0][0] if self.event_counts else "none",
         }
+
+    def maybe_close_attack_session(self, idle_gap_seconds: float = 8.0, min_events: int = 4) -> dict[str, Any] | None:
+        if self.current_attack_last_event_at is None or self.current_attack_started_at is None:
+            return None
+        if len(self.current_attack_events) < min_events:
+            return None
+        if time.time() - self.current_attack_last_event_at < idle_gap_seconds:
+            return None
+
+        events = list(self.current_attack_events)
+        type_counts: Counter[str] = Counter(str(e.get("type", "unknown")) for e in events)
+        source_counts: Counter[str] = Counter(str(e.get("src_ip", "unknown")) for e in events)
+        ports = sorted({int(e["port"]) for e in events if isinstance(e.get("port"), int)})
+        scores = [self._score_event(e) for e in events]
+
+        session = {
+            "attack_started_at": self.current_attack_started_at,
+            "attack_ended_at": self.current_attack_last_event_at,
+            "duration_seconds": round(self.current_attack_last_event_at - self.current_attack_started_at, 2),
+            "event_count": len(events),
+            "avg_threat": (sum(scores) / len(scores)) if scores else 0.0,
+            "max_threat": max(scores) if scores else 0,
+            "cowrie_events": sum(1 for e in events if str(e.get("type", "")).startswith("cowrie.")),
+            "top_event_type": type_counts.most_common(1)[0][0] if type_counts else "none",
+            "top_source": source_counts.most_common(1)[0][0] if source_counts else "none",
+            "unique_sources": len(source_counts),
+            "ports_touched": ports[:30],
+            "event_type_breakdown": dict(type_counts),
+        }
+
+        self.last_completed_attack = session
+        self.current_attack_events.clear()
+        self.current_attack_started_at = None
+        self.current_attack_last_event_at = None
+        return session
 
     def top_ports(self, count: int = 12) -> list[tuple[int, int, str]]:
         ranked = self.port_counts.most_common(count)
@@ -468,6 +513,11 @@ def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors
     level_color = colors["ok"] if level == "low" else colors["warn"] if level in {"medium", "high"} else colors["danger"]
     level_row = left_top_h + 1 + backend_lines
     safe_addstr(stdscr, level_row, 3, f"Level: {level.upper()}", level_color)
+    if state.last_report_generated_at is not None:
+        ts = datetime.fromtimestamp(state.last_report_generated_at).strftime("%H:%M:%S")
+        safe_addstr(stdscr, level_row, 16, f"Report @ {ts}", colors["dim"])
+    elif state.current_attack_last_event_at is not None:
+        safe_addstr(stdscr, level_row, 16, "Collecting current attack...", colors["dim"])
     llm_width = max(10, left_w - 4)
     used = add_wrapped_text(
         stdscr,
@@ -564,7 +614,6 @@ def run_dashboard(
     colors = init_colors()
     state = DashboardState(log_file=log_file)
     debrief = LocalDebrief()
-    last_debrief_at = 0.0
     log_scroll = 0
 
     while True:
@@ -579,10 +628,16 @@ def run_dashboard(
             except queue.Empty:
                 break
 
-        now = time.time()
-        if now - last_debrief_at >= 2.5:
-            state.debrief = debrief.interpret(state.snapshot())
-            last_debrief_at = now
+        closed_session = state.maybe_close_attack_session(idle_gap_seconds=8.0, min_events=4)
+        if closed_session is not None:
+            state.debrief = debrief.interpret(closed_session)
+            state.last_report_generated_at = time.time()
+        elif state.current_attack_last_event_at is not None:
+            age = time.time() - state.current_attack_last_event_at
+            if age < 8.0:
+                state.debrief["summary"] = (
+                    "Attack in progress. Capturing full session before generating report..."
+                )
 
         render(stdscr, state, mode_label, colors, log_scroll)
         key = stdscr.getch()
