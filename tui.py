@@ -456,18 +456,14 @@ class GhostWallTUI(App):
 
     async def action_reset_score(self) -> None:
         """Open the confirmation modal; reset to 0 if confirmed."""
-        async def on_confirm(confirmed: bool) -> None:
-            if confirmed:
-                await self._do_reset_score()
-        await self.push_screen(ResetConfirmModal(), on_confirm)
-
-    async def _do_reset_score(self) -> None:
-        try:
-            r = await self._client.post("/api/score/reset")
-            r.raise_for_status()
-            await self._poll_status()
-        except Exception:
-            pass
+        confirmed = await self.push_screen_wait(ResetConfirmModal())
+        if confirmed:
+            try:
+                r = await self._client.post("/api/score/reset")
+                r.raise_for_status()
+                await self._poll_status()
+            except Exception:
+                pass
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
