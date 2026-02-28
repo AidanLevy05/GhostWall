@@ -32,7 +32,8 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.widgets import DataTable, Footer, Header, RichLog, Static
+from textual.screen import ModalScreen
+from textual.widgets import Button, DataTable, Footer, Header, RichLog, Static
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,54 @@ KIND_COLOR: dict[str, str] = {
     "ban":         "bold red",
     "download":    "yellow",
 }
+
+
+# ── Confirmation modal ─────────────────────────────────────────────────────────
+
+class ResetConfirmModal(ModalScreen[bool]):
+    """Two-step confirmation dialog for manually resetting the threat score."""
+
+    DEFAULT_CSS = """
+    ResetConfirmModal {
+        align: center middle;
+    }
+    ResetConfirmModal #dialog {
+        background: #161b22;
+        border: solid #f85149;
+        padding: 1 3;
+        width: 54;
+        height: 9;
+    }
+    ResetConfirmModal #dialog-title {
+        text-align: center;
+        color: #f85149;
+        text-style: bold;
+        padding-bottom: 1;
+    }
+    ResetConfirmModal #dialog-body {
+        text-align: center;
+        color: #e6edf3;
+        padding-bottom: 1;
+    }
+    ResetConfirmModal #buttons {
+        align: center middle;
+        height: 3;
+    }
+    ResetConfirmModal Button {
+        margin: 0 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Static("RESET THREAT SCORE", id="dialog-title")
+            yield Static("Force the score to 0?  This cannot be undone.", id="dialog-body")
+            with Horizontal(id="buttons"):
+                yield Button("Yes, Reset to 0", id="confirm-yes", variant="error")
+                yield Button("Cancel",          id="confirm-no",  variant="default")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "confirm-yes")
 
 
 # ── Custom widgets ─────────────────────────────────────────────────────────────
@@ -133,9 +182,10 @@ class GhostWallTUI(App):
     SUB_TITLE = "Real-time threat monitoring"
 
     BINDINGS = [
-        ("q", "quit",      "Quit"),
-        ("r", "refresh",   "Refresh"),
-        ("c", "clear_log", "Clear log"),
+        ("q", "quit",        "Quit"),
+        ("r", "refresh",     "Refresh"),
+        ("c", "clear_log",   "Clear log"),
+        ("z", "reset_score", "Reset Score"),
     ]
 
     CSS = """
@@ -403,6 +453,21 @@ class GhostWallTUI(App):
     def action_clear_log(self) -> None:
         """Clear the event log panel."""
         self.query_one("#event-log", RichLog).clear()
+
+    async def action_reset_score(self) -> None:
+        """Open the confirmation modal; reset to 0 if confirmed."""
+        async def on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                await self._do_reset_score()
+        await self.push_screen(ResetConfirmModal(), on_confirm)
+
+    async def _do_reset_score(self) -> None:
+        try:
+            r = await self._client.post("/api/score/reset")
+            r.raise_for_status()
+            await self._poll_status()
+        except Exception:
+            pass
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

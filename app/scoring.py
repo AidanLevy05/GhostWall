@@ -90,6 +90,12 @@ def get_state() -> ThreatState:
     return _state
 
 
+def reset_score() -> None:
+    """Manually force the threat score to 0, overriding decay."""
+    _state.score = 0.0
+    _state.level = "GREEN"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -97,6 +97,14 @@ async def api_status() -> JSONResponse:
     })
 
 
+@app.post("/api/score/reset")
+async def api_score_reset() -> JSONResponse:
+    """Manually reset the threat score to 0."""
+    scoring.reset_score()
+    logger.info("Threat score manually reset to 0.")
+    return JSONResponse({"ok": True, "score": 0.0, "level": "GREEN"})
+
+
 @app.get("/api/events")
 async def api_events(limit: int = 200) -> JSONResponse:
     rows = await db.fetch_recent_events(limit)
