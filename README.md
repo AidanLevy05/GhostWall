@@ -1,2 +1,2 @@
 # GhostWall
-# Aidan Lathe Nick Andrew
+# A HenHacks Submission By: Aidan L, Lathe E, Nicholas C, Andrew X
