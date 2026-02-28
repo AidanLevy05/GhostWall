@@ -1,0 +1,4 @@
+aiosqlite>=0.20.0
+textual>=0.45.0
+# Optional: enable LLM debrief with D key
+# anthropic>=0.25.0
