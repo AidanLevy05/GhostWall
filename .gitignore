@@ -1,2 +1,5 @@
 .venv/
 venv/*
+
+# files for system port usage
+original_port_config.txt
