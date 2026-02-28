@@ -17,7 +17,7 @@ BRUTE_THRESHOLD = 10
 BRUTE_WINDOW = 10
 
 # don't fire the same event twice in a row for the same IP
-COOLDOWN = 30
+COOLDOWN = 1
 
 # filled in by main.py on startup
 event_queue = None
