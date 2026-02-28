@@ -1,2 +1,2 @@
 # GhostWall
-# A HenHacks Submission By: Aidan L, Lathe E, Nicholas C, Andrew X
+# A HenHacks Submission by Aidan L, Lathe E, Nicholas C, Andrew X
