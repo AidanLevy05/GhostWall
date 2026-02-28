@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: ssh-shield-cowrie
+    ports:
+      - "2222:2222"
+    volumes:
+      - cowrie-logs:/cowrie/var/log/cowrie
+    environment:
+      - COWRIE_TELNET_ENABLED=no
+    restart: unless-stopped
+    networks:
+      - shield-net
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: ssh-shield-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - cowrie-logs:/cowrie-logs:ro
+    environment:
+      - COWRIE_LOG_PATH=/cowrie-logs/cowrie.json
+      - DB_PATH=/data/shield.db
+      - DRY_RUN=true
+    depends_on:
+      - cowrie
+    restart: unless-stopped
+    networks:
+      - shield-net
+
+volumes:
+  cowrie-logs:
+  app-data:
+
+networks:
+  shield-net:
+    driver: bridge
