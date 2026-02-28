@@ -32,6 +32,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from Defense_Solutions.engine import build_defense_actions
+from LLM_Debrief.chatbot import LocalDebrief
 
 
 BASE_EVENT_SCORE = {
@@ -39,11 +40,15 @@ BASE_EVENT_SCORE = {
     "arp.scan": 28,
     "port.sweep": 45,
     "brute.force": 75,
+    "cowrie.login.failed": 55,
+    "cowrie.command.input": 70,
+    "cowrie.session.file_download": 85,
+    "cowrie.session.connect": 48,
 }
 
 
 class DashboardState:
-    def __init__(self) -> None:
+    def __init__(self, log_file: Path | None = None) -> None:
         self.started_at = time.time()
         self.total_events = 0
         self.event_counts: Counter[str] = Counter()
@@ -52,6 +57,24 @@ class DashboardState:
         self.recent_scores: deque[int] = deque(maxlen=300)
         self.ip_last_seen: dict[str, float] = defaultdict(float)
         self.recent_actions: deque[dict[str, Any]] = deque(maxlen=120)
+        self.port_counts: Counter[int] = Counter()
+        self.cowrie_events = 0
+        self.next_log_id = 1
+        self.log_file = log_file
+        self.debrief: dict[str, Any] = {
+            "backend": "heuristic",
+            "level": "low",
+            "summary": "Waiting for telemetry...",
+            "actions": ["No recommendations yet."],
+        }
+        self.service_by_port = {
+            21: "FTP decoy",
+            22: "SSH real",
+            2222: "Cowrie honeypot",
+            80: "HTTP",
+            443: "HTTPS",
+            8080: "HTTP-alt",
+        }
 
     def _score_event(self, event: dict[str, Any]) -> int:
         event_type = str(event.get("type", "unknown"))
@@ -94,6 +117,7 @@ class DashboardState:
 
         self.recent_logs.appendleft(
             {
+                "id": self.next_log_id,
                 "timestamp": ts,
                 "src_ip": src_ip,
                 "type": event_type,
@@ -103,9 +127,27 @@ class DashboardState:
                 "response_color": response_color,
             }
         )
+        self.next_log_id += 1
+        if isinstance(port, int):
+            self.port_counts[port] += 1
+        if event_type.startswith("cowrie."):
+            self.cowrie_events += 1
+
+        if self.log_file is not None:
+            self._write_log_line(
+                f"{int(ts)} id={self.next_log_id - 1} src={src_ip} event={event_type} port={port} score={score} response={response_text}"
+            )
 
         for action in build_defense_actions(event):
             self.recent_actions.appendleft(action)
+
+    def _write_log_line(self, line: str) -> None:
+        try:
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            with self.log_file.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
 
     def uptime(self) -> str:
         seconds = int(time.time() - self.started_at)
@@ -127,6 +169,19 @@ class DashboardState:
         cutoff = time.time() - window_seconds
         return sum(1 for _, ts in self.ip_last_seen.items() if ts >= cutoff)
 
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "avg_threat": self.average_weighted_threat(),
+            "current_attacks": self.current_attack_count(),
+            "active_sources": self.active_source_count(),
+            "cowrie_events": self.cowrie_events,
+            "top_event_type": self.event_counts.most_common(1)[0][0] if self.event_counts else "none",
+        }
+
+    def top_ports(self, count: int = 12) -> list[tuple[int, int, str]]:
+        ranked = self.port_counts.most_common(count)
+        return [(p, c, self.service_by_port.get(p, "unknown")) for p, c in ranked]
+
 
 def parse_event_line(line: str) -> dict[str, Any] | None:
     text = line.strip()
@@ -141,6 +196,46 @@ def parse_event_line(line: str) -> dict[str, Any] | None:
         except Exception:
             continue
     return None
+
+
+def parse_cowrie_line(line: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(line.strip())
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    event_id = str(data.get("eventid", "cowrie.unknown"))
+    src_ip = str(data.get("src_ip", "unknown"))
+    ts = float(data.get("timestamp", time.time())) if isinstance(data.get("timestamp"), (int, float)) else time.time()
+    dst_port = data.get("dst_port", 22)
+    if not isinstance(dst_port, int):
+        dst_port = 22
+
+    mapped = {
+        "cowrie.login.failed": "cowrie.login.failed",
+        "cowrie.command.input": "cowrie.command.input",
+        "cowrie.session.file_download": "cowrie.session.file_download",
+        "cowrie.session.connect": "cowrie.session.connect",
+    }
+    event_type = mapped.get(event_id, "cowrie.session.connect")
+    out = {"type": event_type, "src_ip": src_ip, "timestamp": ts, "port": dst_port}
+    if "input" in data:
+        out["command"] = str(data.get("input", ""))[:80]
+    return out
+
+
+def parse_action_line(line: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(line.strip())
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if "source" not in data or "severity" not in data:
+        return None
+    return data
 
 
 def start_demo_source(out_q: queue.Queue[dict[str, Any]]) -> threading.Thread:
@@ -203,6 +298,46 @@ def start_follow_source(path: Path, out_q: queue.Queue[dict[str, Any]]) -> threa
                 event = parse_event_line(line)
                 if event is not None:
                     out_q.put(event)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
+
+
+def start_cowrie_source(path: Path, out_q: queue.Queue[dict[str, Any]]) -> threading.Thread:
+    def run() -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(exist_ok=True)
+        with path.open("r", encoding="utf-8") as file:
+            file.seek(0, 2)
+            while True:
+                line = file.readline()
+                if not line:
+                    time.sleep(0.2)
+                    continue
+                event = parse_cowrie_line(line)
+                if event is not None:
+                    out_q.put(event)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
+
+
+def start_actions_source(path: Path, out_q: queue.Queue[dict[str, Any]]) -> threading.Thread:
+    def run() -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(exist_ok=True)
+        with path.open("r", encoding="utf-8") as file:
+            file.seek(0, 2)
+            while True:
+                line = file.readline()
+                if not line:
+                    time.sleep(0.2)
+                    continue
+                action = parse_action_line(line)
+                if action is not None:
+                    out_q.put(action)
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
@@ -287,101 +422,140 @@ def draw_card(stdscr: curses.window, y: int, x: int, h: int, w: int, title: str,
         stdscr.addch(y + h - 1, x + w - 1, ord("+"), colors["dim"])
 
 
-def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors: dict[str, int]) -> None:
+def render(stdscr: curses.window, state: DashboardState, mode_label: str, colors: dict[str, int], log_scroll: int) -> None:
     stdscr.erase()
     height, width = stdscr.getmaxyx()
-    if height < 22 or width < 90:
-        safe_addstr(stdscr, 1, 2, "Terminal too small. Resize to at least 90x22.", colors["warn"])
+    if height < 24 or width < 100:
+        safe_addstr(stdscr, 1, 2, "Terminal too small. Resize to at least 100x24.", colors["warn"])
         safe_addstr(stdscr, 3, 2, "Press q to quit.", colors["dim"])
         stdscr.refresh()
         return
 
-    top_h = 7
-    mid_h = max(8, (height - top_h - 2) // 2)
-    bot_h = height - top_h - mid_h - 1
+    left_w = 34
+    right_x = left_w + 1
+    right_w = width - right_x - 1
 
-    draw_card(stdscr, 0, 1, top_h, width - 2, "Attack Summary", colors)
-    draw_card(stdscr, top_h, 1, mid_h, width - 2, "Current Logs + Threat Level", colors)
-    draw_card(stdscr, top_h + mid_h, 1, bot_h, width - 2, "Response Decisions", colors)
+    left_top_h = max(8, int(height * 0.58))
+    left_bottom_h = height - left_top_h
+    right_top_h = 7
+    right_mid_h = max(9, int((height - right_top_h) * 0.58))
+    right_bottom_h = height - right_top_h - right_mid_h
+
+    draw_card(stdscr, 0, 1, left_top_h, left_w, "Port List", colors)
+    draw_card(stdscr, left_top_h, 1, left_bottom_h, left_w, "LLM Response", colors)
+    draw_card(stdscr, 0, right_x, right_top_h, right_w, "Attacks", colors)
+    draw_card(stdscr, right_top_h, right_x, right_mid_h, right_w, "Logs with Threat Level", colors)
+    draw_card(stdscr, right_top_h + right_mid_h, right_x, right_bottom_h, right_w, "Response (by ID)", colors)
+
+    safe_addstr(stdscr, 1, 3, "PORT  HITS  ROLE", colors["title"])
+    for idx, (port, hits, role) in enumerate(state.top_ports(count=max(1, left_top_h - 3))):
+        row = 2 + idx
+        if row >= left_top_h - 1:
+            break
+        safe_addstr(stdscr, row, 3, f"{port:<5} {hits:<5} {role}", colors["base"])
+
+    safe_addstr(stdscr, left_top_h + 1, 3, f"Backend: {state.debrief.get('backend', '-')}", colors["title"])
+    level = str(state.debrief.get("level", "low")).lower()
+    level_color = colors["ok"] if level == "low" else colors["warn"] if level in {"medium", "high"} else colors["danger"]
+    safe_addstr(stdscr, left_top_h + 2, 3, f"Level: {level.upper()}", level_color)
+    llm_width = max(10, left_w - 4)
+    used = add_wrapped_text(
+        stdscr,
+        left_top_h + 3,
+        3,
+        str(state.debrief.get("summary", "")),
+        width=llm_width,
+        attr=colors["base"],
+        max_lines=max(1, left_bottom_h - 6),
+    )
+    row = left_top_h + 3 + used
+    for item in state.debrief.get("actions", [])[:3]:
+        if row >= height - 2:
+            break
+        consumed = add_wrapped_text(stdscr, row, 3, f"- {item}", width=llm_width, attr=colors["base"], max_lines=2)
+        row += max(1, consumed)
 
     avg_threat = state.average_weighted_threat()
     avg_color = colors["ok"] if avg_threat < 20 else colors["warn"] if avg_threat < 50 else colors["danger"]
-    safe_addstr(stdscr, 1, 3, "GHOSTWALL THREAT CONTROL", colors["banner"])
-    safe_addstr(stdscr, 2, 3, f"Mode: {mode_label}   Uptime: {state.uptime()}", colors["base"])
-    safe_addstr(stdscr, 3, 3, f"Current attacks (30s): {state.current_attack_count()}", colors["chip_warn"])
-    safe_addstr(stdscr, 3, 34, f"Active sources (60s): {state.active_source_count()}", colors["chip_ok"])
-    safe_addstr(stdscr, 3, 66, f"Total events: {state.total_events}", colors["base"])
-    safe_addstr(stdscr, 4, 3, f"Average weighted threat: {avg_threat:05.2f}/99", avg_color)
-    add_wrapped_text(
-        stdscr,
-        4,
-        45,
-        "Policy: 0-19 ALERT, 20-49 HONEYPOT(15m), 50-99 HONEYPOT(1h)",
-        width=max(12, width - 48),
-        attr=colors["title"],
-        max_lines=2,
-    )
+    safe_addstr(stdscr, 1, right_x + 2, f"Attacks (30s): {state.current_attack_count()}   Sources (60s): {state.active_source_count()}", colors["chip_warn"])
+    safe_addstr(stdscr, 2, right_x + 2, f"Avg threat: {avg_threat:05.2f}/99   Total events: {state.total_events}", avg_color)
+    safe_addstr(stdscr, 3, right_x + 2, f"Mode: {mode_label}   Uptime: {state.uptime()}", colors["base"])
+    safe_addstr(stdscr, 4, right_x + 2, "Policy: 0-19 alert | 20-49 honeypot 15m | 50-99 honeypot 1h", colors["title"])
 
-    safe_addstr(stdscr, top_h + 1, 3, "TIME", colors["title"])
-    safe_addstr(stdscr, top_h + 1, 12, "SRC IP", colors["title"])
-    safe_addstr(stdscr, top_h + 1, 29, "EVENT", colors["title"])
-    safe_addstr(stdscr, top_h + 1, 44, "PORT", colors["title"])
-    safe_addstr(stdscr, top_h + 1, 52, "THREAT", colors["title"])
-    safe_addstr(stdscr, top_h + 1, 62, "AUTO RESPONSE", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 2, "ID", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 7, "TIME", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 16, "SRC", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 32, "EVENT", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 49, "THREAT", colors["title"])
+    safe_addstr(stdscr, right_top_h + 1, right_x + 58, "RESPONSE", colors["title"])
 
-    mid_rows = max(1, mid_h - 3)
-    for idx, log in enumerate(list(state.recent_logs)[:mid_rows]):
-        row = top_h + 2 + idx
+    mid_rows = max(1, right_mid_h - 3)
+    logs = list(state.recent_logs)
+    max_scroll = max(0, len(logs) - mid_rows)
+    safe_scroll = max(0, min(log_scroll, max_scroll))
+    visible_logs = logs[safe_scroll : safe_scroll + mid_rows]
+    safe_addstr(stdscr, right_top_h + 1, right_x + right_w - 18, f"scroll {safe_scroll}/{max_scroll}", colors["dim"])
+    for idx, log in enumerate(visible_logs):
+        row = right_top_h + 2 + idx
         when = datetime.fromtimestamp(float(log["timestamp"])).strftime("%H:%M:%S")
         score = int(log["score"])
         response = str(log["response"])
         event_color = colors["ok"] if score < 20 else colors["warn"] if score < 50 else colors["danger"]
-        safe_addstr(stdscr, row, 3, when, colors["base"])
-        safe_addstr(stdscr, row, 12, str(log["src_ip"]), colors["base"])
-        safe_addstr(stdscr, row, 29, f"{str(log['type']):<15}", event_color)
-        safe_addstr(stdscr, row, 46, str(log["port"]), colors["base"])
-        safe_addstr(stdscr, row, 52, f"{score:02d}/99", event_color)
-        safe_addstr(stdscr, row, 62, response, event_color)
+        safe_addstr(stdscr, row, right_x + 2, f"{int(log.get('id', 0)):03}", colors["dim"])
+        safe_addstr(stdscr, row, right_x + 7, when, colors["base"])
+        safe_addstr(stdscr, row, right_x + 16, f"{str(log['src_ip']):<15}", colors["base"])
+        safe_addstr(stdscr, row, right_x + 32, f"{str(log['type']):<16}", event_color)
+        safe_addstr(stdscr, row, right_x + 49, f"{score:02d}/99", event_color)
+        safe_addstr(stdscr, row, right_x + 58, response, event_color)
 
-    base_y = top_h + mid_h
-    safe_addstr(stdscr, base_y + 1, 3, "DECISION BANDS:", colors["title"])
-    safe_addstr(stdscr, base_y + 2, 3, "0-19  -> Send alert only", colors["ok"])
-    safe_addstr(stdscr, base_y + 3, 3, "20-49 -> Open honeypot for 15 minutes (theoretical)", colors["warn"])
-    safe_addstr(stdscr, base_y + 4, 3, "50-99 -> Open honeypot for 1 hour (theoretical)", colors["danger"])
-    safe_addstr(stdscr, base_y + 1, 54, "LATEST DEFENSE ACTIONS", colors["title"])
-
-    action_rows = max(1, bot_h - 3)
+    base_y = right_top_h + right_mid_h
+    safe_addstr(stdscr, base_y + 1, right_x + 2, "Latest response actions (linked to log IDs):", colors["title"])
+    action_rows = max(1, right_bottom_h - 3)
     row = base_y + 2
     for action in list(state.recent_actions):
         if row >= base_y + 2 + action_rows:
             break
-        severity = str(action.get("severity", "low")).lower()
-        color = colors["ok"] if severity == "low" else colors["warn"] if severity in {"medium", "high"} else colors["danger"]
+        severity = str(action.get("severity", "low")).upper()
         src = str(action.get("src_ip", "-"))
-        source = str(action.get("source", "-"))
         summary = str(action.get("summary", ""))
-        prefix = f"[{severity.upper():8}] {src:<15} {source:<10} "
-        summary_width = max(12, width - 56 - len(prefix))
-        wrapped = textwrap.wrap(summary, width=summary_width, break_long_words=True, break_on_hyphens=True) or [""]
-        safe_addstr(stdscr, row, 54, prefix + wrapped[0], color)
-        row += 1
-        indent = " " * len(prefix)
-        for continuation in wrapped[1:]:
-            if row >= base_y + 2 + action_rows:
-                break
-            safe_addstr(stdscr, row, 54, indent + continuation, color)
-            row += 1
+        enforcement = action.get("enforcement", {})
+        if isinstance(enforcement, dict):
+            applied = enforcement.get("applied")
+            reason = enforcement.get("reason", "ok" if applied else "none")
+            enf = f" [enf:{applied}/{reason}]"
+        else:
+            enf = ""
+        color = colors["ok"] if severity == "LOW" else colors["warn"] if severity in {"MEDIUM", "HIGH"} else colors["danger"]
+        consumed = add_wrapped_text(
+            stdscr,
+            row,
+            right_x + 2,
+            f"[{severity}] {src} -> {summary}{enf}",
+            width=max(12, right_w - 4),
+            attr=color,
+            max_lines=2,
+        )
+        row += max(1, consumed)
 
-    safe_addstr(stdscr, height - 1, 2, "q quit  c clear  arrows/home/end no-op", colors["dim"])
+    safe_addstr(stdscr, height - 1, 2, "q quit  c clear  j/k or arrows scroll logs  PgUp/PgDn  Home/End", colors["dim"])
     stdscr.refresh()
 
 
-def run_dashboard(stdscr: curses.window, event_q: queue.Queue[dict[str, Any]], mode_label: str) -> None:
+def run_dashboard(
+    stdscr: curses.window,
+    event_q: queue.Queue[dict[str, Any]],
+    action_q: queue.Queue[dict[str, Any]],
+    mode_label: str,
+    log_file: Path,
+) -> None:
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(100)
     colors = init_colors()
-    state = DashboardState()
+    state = DashboardState(log_file=log_file)
+    debrief = LocalDebrief()
+    last_debrief_at = 0.0
+    log_scroll = 0
 
     while True:
         while True:
@@ -389,13 +563,44 @@ def run_dashboard(stdscr: curses.window, event_q: queue.Queue[dict[str, Any]], m
                 state.add_event(event_q.get_nowait())
             except queue.Empty:
                 break
+        while True:
+            try:
+                state.recent_actions.appendleft(action_q.get_nowait())
+            except queue.Empty:
+                break
 
-        render(stdscr, state, mode_label, colors)
+        now = time.time()
+        if now - last_debrief_at >= 2.5:
+            state.debrief = debrief.interpret(state.snapshot())
+            last_debrief_at = now
+
+        render(stdscr, state, mode_label, colors, log_scroll)
         key = stdscr.getch()
         if key in (ord("q"), ord("Q")):
             return
         if key in (ord("c"), ord("C")):
-            state = DashboardState()
+            state = DashboardState(log_file=log_file)
+            log_scroll = 0
+            continue
+
+        height, width = stdscr.getmaxyx()
+        right_top_h = 7
+        right_mid_h = max(9, int((height - right_top_h) * 0.58))
+        mid_rows = max(1, right_mid_h - 3)
+        max_scroll = max(0, len(state.recent_logs) - mid_rows)
+
+        if key in (curses.KEY_DOWN, ord("j"), ord("J")):
+            log_scroll = min(max_scroll, log_scroll + 1)
+        elif key in (curses.KEY_UP, ord("k"), ord("K")):
+            log_scroll = max(0, log_scroll - 1)
+        elif key == curses.KEY_NPAGE:
+            log_scroll = min(max_scroll, log_scroll + 5)
+        elif key == curses.KEY_PPAGE:
+            log_scroll = max(0, log_scroll - 5)
+        elif key == curses.KEY_HOME:
+            log_scroll = 0
+        elif key == curses.KEY_END:
+            log_scroll = max_scroll
 
 
 def parse_args() -> argparse.Namespace:
@@ -403,12 +608,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--demo", action="store_true", help="Generate synthetic attack events")
     parser.add_argument("--stdin", action="store_true", help="Read event objects from stdin")
     parser.add_argument("--follow", type=Path, help="Tail a JSONL-like event file")
+    parser.add_argument("--cowrie-follow", type=Path, help="Tail Cowrie JSON log (cowrie.json)")
+    parser.add_argument("--actions-follow", type=Path, default=Path("defense_actions.jsonl"), help="Tail defense actions JSONL")
+    parser.add_argument("--log-file", type=Path, default=Path("ghostwall_tui_logs.txt"), help="Write logs with IDs to text file")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     event_q: queue.Queue[dict[str, Any]] = queue.Queue()
+    action_q: queue.Queue[dict[str, Any]] = queue.Queue()
 
     selected = [args.demo, args.stdin, bool(args.follow)]
     if sum(bool(x) for x in selected) > 1:
@@ -428,7 +637,19 @@ def main() -> int:
         start_demo_source(event_q)
         mode_label = "demo (default)"
 
-    curses.wrapper(run_dashboard, event_q, mode_label)
+    if args.cowrie_follow:
+        if str(args.cowrie_follow).startswith("/path/to/"):
+            raise SystemExit("Replace /path/to/cowrie.json with a real file path (example: /tmp/cowrie.json).")
+        start_cowrie_source(args.cowrie_follow, event_q)
+        mode_label = f"{mode_label} + cowrie:{args.cowrie_follow}"
+    if args.actions_follow:
+        start_actions_source(args.actions_follow, action_q)
+        mode_label = f"{mode_label} + actions:{args.actions_follow}"
+
+    try:
+        curses.wrapper(run_dashboard, event_q, action_q, mode_label, args.log_file)
+    except KeyboardInterrupt:
+        return 0
     return 0
 
 

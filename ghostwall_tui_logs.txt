@@ -1,0 +1,49 @@
+1772315152 id=1 src=185.220.101.3 event=connect.attempt port=8080 score=12 response=Alert only
+1772315153 id=2 src=10.0.0.22 event=connect.attempt port=80 score=12 response=Alert only
+1772315153 id=3 src=192.168.1.10 event=connect.attempt port=5432 score=12 response=Alert only
+1772315153 id=4 src=172.16.5.17 event=connect.attempt port=21 score=12 response=Alert only
+1772315154 id=5 src=185.220.101.3 event=connect.attempt port=3306 score=12 response=Alert only
+1772315154 id=6 src=172.16.5.17 event=arp.scan port=22 score=33 response=Open honeypot 15m
+1772315155 id=7 src=185.220.101.3 event=connect.attempt port=8080 score=12 response=Alert only
+1772315155 id=8 src=172.16.5.17 event=connect.attempt port=443 score=12 response=Alert only
+1772315156 id=9 src=185.220.101.3 event=brute.force port=80 score=82 response=Open honeypot 1h
+1772315157 id=10 src=185.220.101.3 event=connect.attempt port=443 score=12 response=Alert only
+1772315157 id=11 src=10.0.0.22 event=brute.force port=5432 score=89 response=Open honeypot 1h
+1772315158 id=12 src=185.220.101.3 event=port.sweep port=22 score=60 response=Open honeypot 1h
+1772315158 id=13 src=10.0.0.22 event=brute.force port=3306 score=88 response=Open honeypot 1h
+1772315159 id=14 src=192.168.1.10 event=connect.attempt port=8080 score=12 response=Alert only
+1772315159 id=15 src=185.220.101.3 event=brute.force port=8080 score=82 response=Open honeypot 1h
+1772315160 id=16 src=185.220.101.3 event=brute.force port=8080 score=85 response=Open honeypot 1h
+1772315160 id=17 src=10.0.0.22 event=connect.attempt port=8080 score=12 response=Alert only
+1772315396 id=1 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315396 id=2 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315396 id=3 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315396 id=4 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315396 id=5 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=6 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=7 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=8 src=127.0.0.1 event=brute.force port=22 score=85 response=Open honeypot 1h
+1772315397 id=9 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=10 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=11 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=12 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=13 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=14 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=15 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=16 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=17 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=18 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315397 id=19 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=20 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=21 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=22 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=23 src=127.0.0.1 event=port.sweep port=- score=67 response=Open honeypot 1h
+1772315398 id=24 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=25 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=26 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=27 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=28 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=29 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=30 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315398 id=31 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only
+1772315399 id=32 src=127.0.0.1 event=connect.attempt port=22 score=17 response=Alert only

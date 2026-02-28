@@ -1,8 +1,11 @@
-from scapy.all import sniff, ARP, TCP, IP
+from scapy.all import sniff, ARP, TCP, IP, get_if_list
 from collections import defaultdict
 import time
 import queue
 import threading
+import json
+import sys
+import os
 
 # how many ARP requests from one IP before we care
 ARP_THRESHOLD = 5
@@ -31,6 +34,12 @@ ip_activity = defaultdict(lambda: {
 })
 
 lock = threading.Lock()
+DEBUG = os.getenv("SCANNER_DEBUG", "0").strip() == "1"
+
+
+def debug(msg: str) -> None:
+    if DEBUG:
+        print(msg, file=sys.stderr, flush=True)
 
 
 def prune(lst, cutoff):
@@ -52,7 +61,7 @@ def fire(event_type, src_ip, extra={}):
         "timestamp": time.time(),
         **extra
     }
-    print(f"[scanner] {event_type} from {src_ip}")
+    debug(f"[scanner] {event_type} from {src_ip}")
     if event_queue:
         event_queue.put(event)
 
@@ -117,14 +126,20 @@ def handle_packet(pkt):
 def start(interface, q):
     global event_queue
     event_queue = q
+    if interface not in get_if_list():
+        raise SystemExit(
+            f"Interface '{interface}' not found. Available: {', '.join(get_if_list())}"
+        )
     t = threading.Thread(target=lambda: sniff(iface=interface, prn=handle_packet, store=False), daemon=True)
     t.start()
-    print(f"[scanner] listening on {interface}")
+    debug(f"[scanner] listening on {interface}")
 
 
 if __name__ == "__main__":
-    import sys
     q = queue.Queue()
     start(sys.argv[1] if len(sys.argv) > 1 else "eth0", q)
-    while True:
-        print(q.get())
+    try:
+        while True:
+            print(json.dumps(q.get(), separators=(",", ":"), sort_keys=True), flush=True)
+    except KeyboardInterrupt:
+        pass
