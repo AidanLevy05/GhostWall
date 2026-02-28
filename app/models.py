@@ -1,5 +1,5 @@
 """
-Pydantic models for SSH-Shield events and snapshots.
+Pydantic models for GhostWall events and snapshots.
 """
 from __future__ import annotations
 

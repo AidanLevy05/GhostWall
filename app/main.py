@@ -1,5 +1,5 @@
 """
-SSH-Shield – FastAPI application entry point.
+GhostWall – FastAPI application entry point.
 
 Starts two background tasks on startup:
   1. collector.tail_log()  – tails Cowrie JSON log → SQLite
@@ -34,9 +34,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
 )
-logger = logging.getLogger("ssh-shield")
+logger = logging.getLogger("ghostwall")
 
-app = FastAPI(title="SSH-Shield", version="0.1.0")
+app = FastAPI(title="GhostWall", version="0.1.0")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -50,7 +50,7 @@ async def startup() -> None:
     asyncio.create_task(collector.tail_log(), name="collector")
     asyncio.create_task(scoring.scoring_loop(), name="scoring")
     asyncio.create_task(_defense_loop(), name="defense")
-    logger.info("SSH-Shield started.")
+    logger.info("GhostWall started.")
 
 
 async def _defense_loop() -> None:

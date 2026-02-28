@@ -1,4 +1,4 @@
-# SSH-Shield
+# GhostWall
 
 **Autonomous SSH Defense Loop** – honeypot deception + live threat scoring + adaptive response.
 
@@ -8,7 +8,7 @@
 
 ## What it does
 
-SSH-Shield runs a two-container stack that watches an SSH honeypot in real time, computes a live **Threat Score (0–100)**, and triggers adaptive defenses automatically.
+GhostWall runs a two-container stack that watches an SSH honeypot in real time, computes a live **Threat Score (0–100)**, and triggers adaptive defenses automatically.
 
 | Layer | Description |
 |---|---|
@@ -81,7 +81,7 @@ score = max(raw_score, prev_score × 0.97)   # decay
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url> && cd ssh-shield
+git clone <repo-url> && cd GhostWall
 
 # 2. Build and start everything
 docker compose up --build

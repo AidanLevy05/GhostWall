@@ -1,5 +1,5 @@
 """
-SQLite database helpers for SSH-Shield.
+SQLite database helpers for GhostWall.
 
 Tables
 ------
