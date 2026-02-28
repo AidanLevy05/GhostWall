@@ -2,17 +2,23 @@
 """
 GhostWall – Attack Simulator
 =============================
-Injects realistic fake Cowrie SSH honeypot events directly into the cowrie.json
-log file so the collector picks them up and the threat score climbs.
+Injects realistic fake Cowrie SSH honeypot events into the cowrie.json log
+so the collector picks them up and the threat score climbs.
 
-No real network connections are made. Events are written into the running
-Cowrie container via `docker exec`.
+No real network connections are made.
+
+Mode selection (automatic):
+  • Docker mode  – writes via `docker exec` into the running Cowrie container.
+                   Used when Docker is available and the container is running.
+  • Local mode   – writes directly to a local file path.
+                   Used when Docker is unavailable (e.g. development / testing).
 
 Usage
 -----
-    python3 simulate_attack.py              # default: 60-event medium attack
-    python3 simulate_attack.py --preset heavy   # 150 events, many IPs
-    python3 simulate_attack.py --preset light   # 20 events, few IPs
+    python3 simulate_attack.py                          # auto-detect mode
+    python3 simulate_attack.py --preset heavy           # 150 events → RED
+    python3 simulate_attack.py --preset light           # 20 events  → YELLOW
+    python3 simulate_attack.py --log-file /tmp/ghostwall/cowrie.json
     python3 simulate_attack.py --events 100 --ips 8 --delay 0.1
 
 Presets
@@ -25,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import subprocess
 import sys
@@ -62,10 +69,12 @@ IP_POOLS = {
          "91.92.251.103", "138.197.96.4",   "159.89.213.52"],
 }
 
-COWRIE_LOG = "/cowrie/var/log/cowrie/cowrie.json"
+# Default paths
+DOCKER_LOG   = "/cowrie/var/log/cowrie/cowrie.json"
+DEFAULT_LOCAL = "/tmp/ghostwall/cowrie.json"
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers – event builders
 # ---------------------------------------------------------------------------
 
 def ts_now() -> str:
@@ -117,13 +126,16 @@ def disconnect_event(ip: str, session: str) -> dict:
     }
 
 
-def append_to_cowrie_log(container: str, line: str) -> bool:
-    """Write one JSON line to the Cowrie log inside the container."""
-    escaped = line.replace("'", "'\\''")
+# ---------------------------------------------------------------------------
+# Helpers – write modes
+# ---------------------------------------------------------------------------
+
+def docker_available() -> bool:
+    """Return True if the Docker daemon is reachable."""
     result = subprocess.run(
-        ["docker", "exec", container, "sh", "-c",
-         f"echo '{escaped}' >> {COWRIE_LOG}"],
-        capture_output=True, text=True,
+        ["docker", "info"],
+        capture_output=True,
+        timeout=3,
     )
     return result.returncode == 0
 
@@ -136,30 +148,68 @@ def check_container(container: str) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
+def append_via_docker(container: str, line: str) -> bool:
+    """Write one JSON line to the Cowrie log inside the container."""
+    escaped = line.replace("'", "'\\''")
+    result = subprocess.run(
+        ["docker", "exec", container, "sh", "-c",
+         f"echo '{escaped}' >> {DOCKER_LOG}"],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0
+
+
+def append_to_local_file(log_path: str, line: str) -> bool:
+    """Write one JSON line directly to a local file."""
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "a") as fh:
+            fh.write(line + "\n")
+        return True
+    except Exception as exc:
+        print(f"  ERROR writing to {log_path}: {exc}")
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Simulation
 # ---------------------------------------------------------------------------
 
-def run_simulation(container: str, ips: list[str], n_events: int, delay: float) -> None:
+def run_simulation(
+    *,
+    ips: list[str],
+    n_events: int,
+    delay: float,
+    container: str | None,   # None → local mode
+    log_file: str | None,    # used in local mode
+) -> None:
+    local_mode = container is None
+    target = log_file if local_mode else f"{container}:{DOCKER_LOG}"
+
     print(f"\n  GhostWall Attack Simulator")
-    print(f"  Container : {container}")
+    print(f"  Mode      : {'local file' if local_mode else 'docker exec'}")
+    print(f"  Target    : {target}")
     print(f"  Fake IPs  : {len(ips)}  ({', '.join(ips[:3])}{'...' if len(ips) > 3 else ''})")
     print(f"  Events    : {n_events}")
     print(f"  Delay     : {delay}s between events")
-    print(f"  Log file  : {COWRIE_LOG}")
     print()
 
-    # Ensure the log directory exists and the log FILE exists before we write.
-    # Critical: the collector seeks to EOF when it first finds the file. If we
-    # create the file AND fill it in one shot, the collector sees all events as
-    # "already there" and skips them (score stays 0).  By touching the file
-    # first and waiting >2 s (one collector poll cycle), the collector sets its
-    # internal position to 0 (empty file) so every subsequent line is new.
-    subprocess.run(
-        ["docker", "exec", container, "sh", "-c",
-         f"mkdir -p /cowrie/var/log/cowrie && touch {COWRIE_LOG}"],
-        capture_output=True,
-    )
+    # ── Ensure the log file exists BEFORE the collector poll cycle ───────────
+    # Critical: the collector seeks to EOF when it first opens the file.
+    # We create an empty file first, wait >2 s (one collector cycle), then
+    # write events so every line is treated as new.
+    if local_mode:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        # Touch the file (create empty if absent, leave content if present)
+        with open(log_file, "a"):
+            pass
+    else:
+        subprocess.run(
+            ["docker", "exec", container, "sh", "-c",
+             f"mkdir -p /cowrie/var/log/cowrie && touch {DOCKER_LOG}"],
+            capture_output=True,
+        )
+
     print("  Waiting 3 s for the collector to register the log file...")
     time.sleep(3)
 
@@ -170,12 +220,13 @@ def run_simulation(container: str, ips: list[str], n_events: int, delay: float) 
     for i in range(n_events):
         ip = random.choice(ips)
 
-        # Start a new session for this IP if needed (or occasionally rotate)
+        # Start or rotate session for this IP
         if ip not in sessions or random.random() < 0.15:
             sessions[ip] = make_session_id()
-            ev = connect_event(ip, sessions[ip])
+            ev   = connect_event(ip, sessions[ip])
             line = json.dumps(ev)
-            ok = append_to_cowrie_log(container, line)
+            ok   = (append_to_local_file(log_file, line) if local_mode
+                    else append_via_docker(container, line))
             if ok:
                 sent += 1
                 print(f"  [{sent:>3}] connect       {ip}")
@@ -184,21 +235,22 @@ def run_simulation(container: str, ips: list[str], n_events: int, delay: float) 
 
         session = sessions[ip]
 
-        # 70% chance failed auth, 20% command (if "logged in"), 10% disconnect
+        # 70% failed auth, 20% command, 10% disconnect
         roll = random.random()
         if roll < 0.70:
-            ev = failed_auth_event(ip, session)
+            ev    = failed_auth_event(ip, session)
             label = f"failed_auth   {ip}  user={ev['username']}"
         elif roll < 0.90:
-            ev = command_event(ip, session)
+            ev    = command_event(ip, session)
             label = f"command       {ip}  cmd={ev['input'][:30]}"
         else:
-            ev = disconnect_event(ip, session)
+            ev    = disconnect_event(ip, session)
             del sessions[ip]
             label = f"disconnect    {ip}"
 
         line = json.dumps(ev)
-        ok = append_to_cowrie_log(container, line)
+        ok   = (append_to_local_file(log_file, line) if local_mode
+                else append_via_docker(container, line))
         if ok:
             sent += 1
             print(f"  [{sent:>3}] {label}")
@@ -210,7 +262,6 @@ def run_simulation(container: str, ips: list[str], n_events: int, delay: float) 
 
     print()
     print(f"  Done. Sent {sent} events, {failed} failed.")
-    print(f"  Watch the dashboard at http://localhost:8000")
     print(f"  Score should rise within ~10 seconds.")
     print()
 
@@ -234,35 +285,55 @@ def main() -> None:
         "--preset", choices=["light", "medium", "heavy"], default="medium",
         help="Attack preset (default: medium)",
     )
-    parser.add_argument("--events", type=int, help="Override number of events")
-    parser.add_argument("--ips",    type=int, choices=[3, 6, 12], help="Override number of fake IPs")
-    parser.add_argument("--delay",  type=float, help="Seconds between events (default: 0.05)")
+    parser.add_argument("--events", type=int,   help="Override number of events")
+    parser.add_argument("--ips",    type=int, choices=[3, 6, 12],
+                        help="Override number of fake IPs")
+    parser.add_argument("--delay",  type=float, help="Seconds between events")
     parser.add_argument(
         "--container", default="ghostwall-cowrie",
-        help="Cowrie container name (default: ghostwall-cowrie)",
+        help="Cowrie Docker container name (default: ghostwall-cowrie)",
+    )
+    parser.add_argument(
+        "--log-file",
+        metavar="PATH",
+        help=(
+            "Write events directly to this local file path instead of using "
+            f"docker exec (default when Docker unavailable: {DEFAULT_LOCAL})"
+        ),
     )
     args = parser.parse_args()
 
     cfg = PRESETS[args.preset].copy()
-    if args.events: cfg["events"] = args.events
-    if args.ips:    cfg["ips"]    = args.ips
+    if args.events:           cfg["events"] = args.events
+    if args.ips:              cfg["ips"]    = args.ips
     if args.delay is not None: cfg["delay"] = args.delay
 
-    container = args.container
+    ip_pool = IP_POOLS.get(cfg["ips"], IP_POOLS[6])
 
-    if not check_container(container):
-        print(f"ERROR: container '{container}' is not running.")
-        print("Run:  docker-compose up -d")
-        sys.exit(1)
-
-    ip_count = cfg["ips"]
-    ip_pool  = IP_POOLS.get(ip_count, IP_POOLS[6])
+    # ── Mode selection ────────────────────────────────────────────────────────
+    if args.log_file:
+        # Explicit local file – skip Docker entirely
+        container = None
+        log_file  = args.log_file
+        print(f"  Using local file mode: {log_file}")
+    elif docker_available() and check_container(args.container):
+        # Docker is up and container is running → use docker exec
+        container = args.container
+        log_file  = None
+    else:
+        # Docker unavailable or container not running → fall back to local file
+        log_file = os.environ.get("COWRIE_LOG_PATH", DEFAULT_LOCAL)
+        container = None
+        print(f"  Docker not available. Writing directly to: {log_file}")
+        print(f"  (Make sure the backend is started with COWRIE_LOG_PATH={log_file})")
+        print()
 
     run_simulation(
-        container=container,
         ips=ip_pool,
         n_events=cfg["events"],
         delay=cfg["delay"],
+        container=container,
+        log_file=log_file,
     )
 
 
