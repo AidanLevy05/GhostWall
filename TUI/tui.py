@@ -49,6 +49,7 @@ BASE_EVENT_SCORE = {
     "fssh.status": 5,
     "fssh.warn": 35,
     "fssh.error": 65,
+    "fssh.blacklist": 72,
     "cowrie.login.failed": 55,
     "cowrie.command.input": 70,
     "cowrie.session.file_download": 85,
@@ -311,6 +312,10 @@ def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any
     force_honeypot_ips = parse_whitelist(args.force_honeypot)
     fssh.set_log_callback(out_q.put)
     fssh.LISTEN_PORT = int(args.listen_port)
+    fssh.set_blacklist_file(args.blacklist_file)
+    fssh.load_blacklist()
+    if args.reset_blacklist:
+        fssh.clear_blacklist()
     fssh.set_port_map(real_port=int(args.real_ssh_port), honeypot_port=int(args.cowrie_port))
     fssh.set_whitelist(whitelist_ips)
     fssh.set_force_honeypot(force_honeypot_ips)
@@ -753,6 +758,16 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated IPs forced to Cowrie even if whitelisted",
     )
     parser.add_argument(
+        "--blacklist-file",
+        default=os.getenv("FSSH_BLACKLIST_FILE", "fssh_blacklist.txt"),
+        help="Path to persistent fssh blacklist file",
+    )
+    parser.add_argument(
+        "--reset-blacklist",
+        action="store_true",
+        help="Clear fssh blacklist on startup",
+    )
+    parser.add_argument(
         "--cowrie-follow",
         type=Path,
         help="Tail Cowrie JSON log (default in live mode: ./cowrie-logs/cowrie.json)",
@@ -796,7 +811,8 @@ def main() -> int:
             f"fssh:{args.listen_port} "
             f"real:{args.real_ssh_port} "
             f"cowrie:{args.cowrie_port} "
-            f"force:{args.force_honeypot or '-'}"
+            f"force:{args.force_honeypot or '-'} "
+            f"bl:{args.blacklist_file}"
         )
 
     cowrie_path = args.cowrie_follow

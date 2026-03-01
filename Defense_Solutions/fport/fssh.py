@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 from typing import Any, Callable
+from pathlib import Path
 
 # port this fake SSH listens on (the "real" port attackers see)
 LISTEN_PORT = 22
@@ -13,12 +14,84 @@ port_map = {}
 # filled in by handler.py - set of whitelisted IPs that get real SSH
 whitelist = set()
 force_honeypot = set()
+blacklist = set()
+blacklist_file = Path("fssh_blacklist.txt")
 log_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 def set_log_callback(callback: Callable[[dict[str, Any]], None] | None) -> None:
     global log_callback
     log_callback = callback
+
+
+def set_blacklist_file(path: str | Path) -> None:
+    global blacklist_file
+    blacklist_file = Path(path)
+
+
+def load_blacklist() -> None:
+    global blacklist
+    try:
+        if not blacklist_file.exists():
+            blacklist = set()
+            return
+        loaded: set[str] = set()
+        with blacklist_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                ip = line.strip()
+                if ip:
+                    loaded.add(ip)
+        blacklist = loaded
+        _emit(
+            f"[fssh] blacklist loaded: {len(blacklist)} IPs",
+            {"type": "fssh.blacklist", "event": "loaded", "count": len(blacklist), "path": str(blacklist_file)},
+        )
+    except Exception as exc:
+        _emit(
+            f"[fssh] blacklist load failed: {exc}",
+            {"type": "fssh.error", "error": f"blacklist_load_failed:{exc}", "path": str(blacklist_file)},
+        )
+
+
+def _save_blacklist() -> None:
+    try:
+        blacklist_file.parent.mkdir(parents=True, exist_ok=True)
+        with blacklist_file.open("w", encoding="utf-8") as f:
+            for ip in sorted(blacklist):
+                f.write(ip + "\n")
+    except Exception as exc:
+        _emit(
+            f"[fssh] blacklist save failed: {exc}",
+            {"type": "fssh.error", "error": f"blacklist_save_failed:{exc}", "path": str(blacklist_file)},
+        )
+
+
+def clear_blacklist() -> None:
+    global blacklist
+    blacklist = set()
+    _save_blacklist()
+    _emit(
+        "[fssh] blacklist cleared",
+        {"type": "fssh.blacklist", "event": "cleared", "count": 0, "path": str(blacklist_file)},
+    )
+
+
+def add_to_blacklist(src_ip: str, reason: str = "honeypot_route") -> None:
+    if src_ip in blacklist:
+        return
+    blacklist.add(src_ip)
+    _save_blacklist()
+    _emit(
+        f"[fssh] blacklisted {src_ip} ({reason})",
+        {
+            "type": "fssh.blacklist",
+            "event": "added",
+            "src_ip": src_ip,
+            "reason": reason,
+            "count": len(blacklist),
+            "path": str(blacklist_file),
+        },
+    )
 
 
 def _emit(message: str, event: dict[str, Any] | None = None) -> None:
@@ -110,6 +183,8 @@ def proxy(src_conn, target_port, src_ip):
         route = "whitelist"
     else:
         route = "attacker"
+    if route == "attacker":
+        add_to_blacklist(src_ip, reason=route)
     _emit(
         f"[fssh] {route.upper()} {src_ip} → port {target_port}",
         {
@@ -141,6 +216,14 @@ def proxy(src_conn, target_port, src_ip):
 
 def handle_connection(conn, addr):
     src_ip = addr[0]
+
+    if src_ip in blacklist:
+        _emit(
+            f"[fssh] BLACKLIST DROP {src_ip}",
+            {"type": "fssh.blacklist", "event": "drop", "src_ip": src_ip, "port": LISTEN_PORT},
+        )
+        conn.close()
+        return
 
     # make sure we have a port map before doing anything
     if not port_map:
@@ -179,6 +262,10 @@ def start():
     _emit(
         f"[fssh] fake SSH listening on port {LISTEN_PORT}",
         {"type": "fssh.status", "port": LISTEN_PORT, "status": "listening"},
+    )
+    _emit(
+        f"[fssh] blacklist active: {len(blacklist)} IPs",
+        {"type": "fssh.blacklist", "event": "active", "count": len(blacklist), "path": str(blacklist_file)},
     )
 
     def accept_loop():

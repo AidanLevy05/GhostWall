@@ -3298,3 +3298,144 @@
 1772336967 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
 1772336967 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
 1772336967 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772337696 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337696 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337696 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337696 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772337698 id=5 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337699 id=6 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337699 id=7 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337700 id=8 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337709 id=9 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337710 id=10 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337712 id=11 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337713 id=12 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337717 id=13 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337718 id=14 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337719 id=15 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337720 id=16 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337721 id=17 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337766 id=18 src=10.92.128.222 event=connect.attempt port=80 score=12 response=Alert only
+1772337767 id=19 src=10.92.128.222 event=connect.attempt port=80 score=12 response=Alert only
+1772337768 id=20 src=10.92.128.222 event=connect.attempt port=80 score=12 response=Alert only
+1772337773 id=21 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337774 id=22 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337774 id=23 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337775 id=24 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337775 id=25 src=10.92.128.222 event=connect.attempt port=22 score=17 response=Alert only
+1772337780 id=26 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337786 id=27 src=10.92.128.222 event=connect.attempt port=443 score=12 response=Alert only
+1772337799 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337799 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337799 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772337799 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772337801 id=5 src=172.20.10.4 event=connect.attempt port=22 score=17 response=Alert only
+1772337801 id=6 src=172.20.10.4 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772337805 id=7 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337806 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337806 id=9 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337806 id=10 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337819 id=11 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772337827 id=12 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772337863 id=13 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337863 id=14 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337863 id=15 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337864 id=16 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337865 id=17 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337868 id=18 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337885 id=19 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337890 id=20 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337907 id=21 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337907 id=22 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337912 id=23 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337944 id=24 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337956 id=25 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337959 id=26 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337964 id=27 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337967 id=28 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337973 id=29 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337982 id=30 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337988 id=31 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337992 id=32 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337992 id=33 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772337993 id=34 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338009 id=35 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338017 id=36 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338020 id=37 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338028 id=38 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338032 id=1 src=unknown event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338032 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338032 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338032 id=4 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338032 id=5 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772338032 id=6 src=unknown event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338038 id=7 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338038 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338038 id=9 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338039 id=10 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338058 id=1 src=unknown event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338058 id=2 src=unknown event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338058 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338058 id=4 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338058 id=5 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772338058 id=6 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772338058 id=7 src=unknown event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338061 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338062 id=9 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338065 id=10 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338065 id=11 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338066 id=12 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338068 id=13 src=172.20.10.3 event=fssh.blacklist port=- score=72 response=Open honeypot 1h
+1772338068 id=14 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772338069 id=15 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338090 id=16 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338095 id=17 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338097 id=18 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338097 id=19 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338102 id=20 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338111 id=21 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338111 id=22 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338115 id=23 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338117 id=24 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338117 id=25 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338119 id=26 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338119 id=27 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338119 id=28 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338119 id=29 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338119 id=30 src=172.20.10.3 event=brute.force port=443 score=80 response=Open honeypot 1h
+1772338119 id=31 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338121 id=32 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338123 id=33 src=172.20.10.3 event=brute.force port=443 score=80 response=Open honeypot 1h
+1772338123 id=34 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338124 id=35 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338124 id=36 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338124 id=37 src=172.20.10.3 event=brute.force port=443 score=81 response=Open honeypot 1h
+1772338124 id=38 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338127 id=39 src=172.20.10.3 event=brute.force port=443 score=81 response=Open honeypot 1h
+1772338127 id=40 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338178 id=41 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338178 id=42 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338183 id=43 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338183 id=44 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338183 id=45 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338188 id=46 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338219 id=47 src=172.20.10.1 event=arp.scan port=- score=30 response=Open honeypot 15m
+1772338266 id=48 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338330 id=49 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338331 id=50 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338331 id=51 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338332 id=52 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338361 id=53 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338361 id=54 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338369 id=55 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338396 id=56 src=172.20.10.1 event=arp.scan port=- score=30 response=Open honeypot 15m
+1772338484 id=57 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338487 id=58 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338666 id=59 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772338732 id=60 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338732 id=61 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338733 id=62 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338733 id=63 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338734 id=64 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338734 id=65 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772338766 id=66 src=172.20.10.3 event=connect.attempt port=22 score=17 response=Alert only

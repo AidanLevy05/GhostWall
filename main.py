@@ -59,6 +59,16 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated IPs forced to Cowrie even if whitelisted",
     )
     parser.add_argument(
+        "--blacklist-file",
+        default=os.getenv("FSSH_BLACKLIST_FILE", "fssh_blacklist.txt"),
+        help="Path to persistent fssh blacklist file",
+    )
+    parser.add_argument(
+        "--reset-blacklist",
+        action="store_true",
+        help="Clear blacklist file on startup",
+    )
+    parser.add_argument(
         "--show-events",
         action="store_true",
         help="Print raw scanner events as JSON",
@@ -121,6 +131,10 @@ def main() -> int:
 
     # Configure fssh from runtime args/env.
     fssh.LISTEN_PORT = int(args.listen_port)
+    fssh.set_blacklist_file(args.blacklist_file)
+    fssh.load_blacklist()
+    if args.reset_blacklist:
+        fssh.clear_blacklist()
     fssh.set_port_map(real_port=int(args.real_ssh_port), honeypot_port=int(args.cowrie_port))
     fssh.set_whitelist(whitelist_ips)
     fssh.set_force_honeypot(force_honeypot_ips)
@@ -144,6 +158,7 @@ def main() -> int:
     )
     print(f"[main] whitelist={whitelist_ips}", flush=True)
     print(f"[main] force_honeypot={force_honeypot_ips}", flush=True)
+    print(f"[main] blacklist_file={args.blacklist_file} reset={args.reset_blacklist}", flush=True)
     print(f"[main] DEFENSE_MODE={os.getenv('DEFENSE_MODE', 'detect')}", flush=True)
     print("[main] CTRL+C to stop", flush=True)
 
