@@ -56,9 +56,12 @@ BASE_EVENT_SCORE = {
     "cowrie.session.connect": 48,
 }
 
+FSSH_BLACKLIST_HOUSEKEEPING_EVENTS = {"loaded", "cleared", "active"}
+SYSTEM_SRC = "system"
+
 
 class DashboardState:
-    def __init__(self, log_file: Path | None = None) -> None:
+    def __init__(self, log_file: Path | None = None, trusted_sources: set[str] | None = None) -> None:
         self.started_at = time.time()
         self.total_events = 0
         self.event_counts: Counter[str] = Counter()
@@ -82,6 +85,7 @@ class DashboardState:
         self.current_attack_last_event_at: float | None = None
         self.last_completed_attack: dict[str, Any] | None = None
         self.last_report_generated_at: float | None = None
+        self.trusted_sources = set(trusted_sources or set())
         self.service_by_port = {
             21: "FTP decoy",
             22: "SSH real",
@@ -91,9 +95,25 @@ class DashboardState:
             8080: "HTTP-alt",
         }
 
+    def _is_trusted_source(self, event: dict[str, Any]) -> bool:
+        src_ip_raw = event.get("src_ip")
+        if not isinstance(src_ip_raw, str):
+            return False
+        src_ip = src_ip_raw.strip()
+        if not src_ip:
+            return False
+        return src_ip in self.trusted_sources
+
     def _score_event(self, event: dict[str, Any]) -> int:
+        if self._is_trusted_source(event):
+            return 0
+
         event_type = str(event.get("type", "unknown"))
         base = BASE_EVENT_SCORE.get(event_type, 10)
+        if event_type == "fssh.blacklist":
+            blacklist_event = str(event.get("event", "")).lower()
+            if blacklist_event in FSSH_BLACKLIST_HOUSEKEEPING_EVENTS:
+                base = 5
 
         count = event.get("count", 0)
         if isinstance(count, int):
@@ -109,6 +129,17 @@ class DashboardState:
 
         return max(0, min(99, base))
 
+    def _display_src_ip(self, event: dict[str, Any]) -> str:
+        src_ip_raw = event.get("src_ip")
+        if isinstance(src_ip_raw, str) and src_ip_raw.strip():
+            return src_ip_raw.strip()
+
+        event_type = str(event.get("type", "unknown"))
+        if event_type.startswith("fssh."):
+            return SYSTEM_SRC
+
+        return "unknown"
+
     def _response_for_score(self, score: int) -> tuple[str, str]:
         if 0 <= score <= 19:
             return ("Alert only", "ok")
@@ -118,7 +149,7 @@ class DashboardState:
 
     def add_event(self, event: dict[str, Any]) -> None:
         event_type = str(event.get("type", "unknown"))
-        src_ip = str(event.get("src_ip", "unknown"))
+        src_ip = self._display_src_ip(event)
         ts = float(event.get("timestamp", time.time()))
         port = event.get("port", "-")
         score = self._score_event(event)
@@ -128,7 +159,8 @@ class DashboardState:
         self.event_counts[event_type] += 1
         self.recent_events.appendleft(event)
         self.recent_scores.appendleft(score)
-        self.ip_last_seen[src_ip] = ts
+        if src_ip not in {SYSTEM_SRC, "unknown"} and src_ip not in self.trusted_sources:
+            self.ip_last_seen[src_ip] = ts
 
         self.recent_logs.appendleft(
             {
@@ -657,12 +689,13 @@ def run_dashboard(
     action_q: queue.Queue[dict[str, Any]],
     mode_label: str,
     log_file: Path,
+    trusted_sources: set[str] | None,
 ) -> None:
     curses.curs_set(0)
     stdscr.nodelay(True)
     stdscr.timeout(100)
     colors = init_colors()
-    state = DashboardState(log_file=log_file)
+    state = DashboardState(log_file=log_file, trusted_sources=trusted_sources)
     debrief = LocalDebrief()
     log_scroll = 0
 
@@ -694,7 +727,7 @@ def run_dashboard(
         if key in (ord("q"), ord("Q")):
             return
         if key in (ord("c"), ord("C")):
-            state = DashboardState(log_file=log_file)
+            state = DashboardState(log_file=log_file, trusted_sources=trusted_sources)
             log_scroll = 0
             continue
 
@@ -788,6 +821,7 @@ def main() -> int:
     action_q: queue.Queue[dict[str, Any]] = queue.Queue()
     fssh_server: socket.socket | None = None
     live_mode = False
+    trusted_sources: set[str] = set()
 
     selected = [args.live, args.demo, args.stdin, bool(args.follow)]
     if sum(bool(x) for x in selected) > 1:
@@ -805,6 +839,9 @@ def main() -> int:
         mode_label = f"follow:{args.follow}"
     else:
         live_mode = True
+        whitelist_ips = set(parse_whitelist(args.whitelist))
+        force_honeypot_ips = set(parse_whitelist(args.force_honeypot))
+        trusted_sources = whitelist_ips - force_honeypot_ips
         fssh_server = start_live_source(args, event_q)
         mode_label = (
             f"live:{args.interface} "
@@ -829,7 +866,7 @@ def main() -> int:
         mode_label = f"{mode_label} + actions:{args.actions_follow}"
 
     try:
-        curses.wrapper(run_dashboard, event_q, action_q, mode_label, args.log_file)
+        curses.wrapper(run_dashboard, event_q, action_q, mode_label, args.log_file, trusted_sources)
     except KeyboardInterrupt:
         return 0
     finally:
