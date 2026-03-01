@@ -3286,3 +3286,15 @@
 1772336743 id=70 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
 1772336743 id=71 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
 1772336866 id=72 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336928 id=73 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336929 id=74 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336929 id=75 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336931 id=76 src=172.20.10.3 event=connect.attempt port=22 score=17 response=Alert only
+1772336942 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336942 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336942 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336942 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772336967 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336967 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336967 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336967 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
