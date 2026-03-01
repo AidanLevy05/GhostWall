@@ -39,3 +39,10 @@ venv/*
 /defense_actions.jsonl
 /fssh_blacklist.txt
 /ghostwall_tui_logs.txt
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
