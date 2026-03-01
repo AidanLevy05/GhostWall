@@ -172,19 +172,20 @@ pip install -r requirements-tui.txt   # for TUI
 
 # 2. Move real SSH off port 22 first (example: port 47832)
 
-# 3. Run the full TUI stack (packet sniffing + fssh + curses dashboard)
-sudo python3 TUI/tui.py --interface eth0 \
-  --listen-port 22 --real-ssh-port 47832 --cowrie-port 2222 \
-  --whitelist <your-ip>
-
-# Or run just the scanner + defense engine without TUI
-sudo python3 defense_runner.py eth0
-
-# Or run the unified orchestrator (no TUI)
-sudo python3 main.py eth0
+# 3. Run the TUI (packet sniffing + fssh + curses dashboard)
+./run.sh
 ```
 
-See `run.sh` for a full example invocation with `DEFENSE_MODE=auto-block`.
+`run.sh` sets all required env vars and launches `TUI/tui.py`:
+
+```bash
+sudo DEFENSE_MODE=auto-block DEFENSE_FIREWALL_BACKEND=nftables \
+  FSSH_WHITELIST="172.20.10.3,127.0.0.1" FSSH_FORCE_HONEYPOT="172.20.10.3" \
+  venv/bin/python3 TUI/tui.py --interface wlp0s20f3 \
+  --listen-port 22 --real-ssh-port 47832 --cowrie-port 2222 --reset-blacklist
+```
+
+Edit `run.sh` to change the interface (`wlp0s20f3`), whitelist IPs, or other defaults before running.
 
 ---
 
