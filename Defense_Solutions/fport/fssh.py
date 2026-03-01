@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+from typing import Any, Callable
 
 # port this fake SSH listens on (the "real" port attackers see)
 LISTEN_PORT = 22
@@ -11,6 +12,27 @@ port_map = {}
 
 # filled in by handler.py - set of whitelisted IPs that get real SSH
 whitelist = set()
+force_honeypot = set()
+log_callback: Callable[[dict[str, Any]], None] | None = None
+
+
+def set_log_callback(callback: Callable[[dict[str, Any]], None] | None) -> None:
+    global log_callback
+    log_callback = callback
+
+
+def _emit(message: str, event: dict[str, Any] | None = None) -> None:
+    payload = dict(event or {})
+    payload.setdefault("type", "fssh.log")
+    payload.setdefault("timestamp", time.time())
+    payload.setdefault("message", message)
+    if log_callback is not None:
+        try:
+            log_callback(payload)
+        except Exception:
+            pass
+        return
+    print(message)
 
 
 def set_port_map(real_port, honeypot_port):  # From handler.py
@@ -19,16 +41,46 @@ def set_port_map(real_port, honeypot_port):  # From handler.py
         "real": real_port,
         "honeypot": honeypot_port
     }
-    print(f"[fssh] port map set: whitelist→{real_port}, everyone else→{honeypot_port}")
+    _emit(
+        f"[fssh] port map set: whitelist→{real_port}, everyone else→{honeypot_port}",
+        {
+            "type": "fssh.config",
+            "port": LISTEN_PORT,
+            "real_port": int(real_port),
+            "honeypot_port": int(honeypot_port),
+        },
+    )
 
 
 def set_whitelist(ips):
     global whitelist
     whitelist = set(ips)
-    print(f"[fssh] whitelist set: {whitelist}")
+    _emit(
+        f"[fssh] whitelist set: {whitelist}",
+        {
+            "type": "fssh.config",
+            "port": LISTEN_PORT,
+            "whitelist": sorted(whitelist),
+        },
+    )
+
+
+def set_force_honeypot(ips):
+    global force_honeypot
+    force_honeypot = set(ips)
+    _emit(
+        f"[fssh] force-honeypot set: {force_honeypot}",
+        {
+            "type": "fssh.config",
+            "port": LISTEN_PORT,
+            "force_honeypot": sorted(force_honeypot),
+        },
+    )
 
 
 def get_target_port(src_ip):
+    if src_ip in force_honeypot:
+        return port_map.get("honeypot")
     if src_ip in whitelist:
         return port_map.get("real")
     return port_map.get("honeypot")
@@ -39,11 +91,35 @@ def proxy(src_conn, target_port, src_ip):
     try:
         dst_conn = socket.create_connection(("127.0.0.1", target_port))
     except Exception as e:
-        print(f"[fssh] couldn't connect to target port {target_port}: {e}")
+        _emit(
+            f"[fssh] couldn't connect to target port {target_port}: {e}",
+            {
+                "type": "fssh.error",
+                "src_ip": src_ip,
+                "port": LISTEN_PORT,
+                "target_port": int(target_port),
+                "error": str(e),
+            },
+        )
         src_conn.close()
         return
 
-    print(f"[fssh] {'WHITELIST' if src_ip in whitelist else 'ATTACKER'} {src_ip} → port {target_port}")
+    if src_ip in force_honeypot:
+        route = "force_honeypot"
+    elif src_ip in whitelist:
+        route = "whitelist"
+    else:
+        route = "attacker"
+    _emit(
+        f"[fssh] {route.upper()} {src_ip} → port {target_port}",
+        {
+            "type": "fssh.route",
+            "src_ip": src_ip,
+            "port": LISTEN_PORT,
+            "target_port": int(target_port),
+            "route": route,
+        },
+    )
 
     def forward(a, b):
         try:
@@ -68,13 +144,19 @@ def handle_connection(conn, addr):
 
     # make sure we have a port map before doing anything
     if not port_map:
-        print(f"[fssh] got connection from {src_ip} but port map isn't set yet, dropping")
+        _emit(
+            f"[fssh] got connection from {src_ip} but port map isn't set yet, dropping",
+            {"type": "fssh.error", "src_ip": src_ip, "port": LISTEN_PORT, "error": "missing_port_map"},
+        )
         conn.close()
         return
 
     target_port = get_target_port(src_ip)
     if not target_port:
-        print(f"[fssh] no target port for {src_ip}, dropping")
+        _emit(
+            f"[fssh] no target port for {src_ip}, dropping",
+            {"type": "fssh.error", "src_ip": src_ip, "port": LISTEN_PORT, "error": "missing_target_port"},
+        )
         conn.close()
         return
 
@@ -85,13 +167,19 @@ def handle_connection(conn, addr):
 
 def start():
     if not port_map:
-        print("[fssh] warning: starting without port map, call set_port_map() first")
+        _emit(
+            "[fssh] warning: starting without port map, call set_port_map() first",
+            {"type": "fssh.warn", "port": LISTEN_PORT},
+        )
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("0.0.0.0", LISTEN_PORT))
     server.listen(10)
-    print(f"[fssh] fake SSH listening on port {LISTEN_PORT}")
+    _emit(
+        f"[fssh] fake SSH listening on port {LISTEN_PORT}",
+        {"type": "fssh.status", "port": LISTEN_PORT, "status": "listening"},
+    )
 
     def accept_loop():
         while True:
@@ -99,7 +187,10 @@ def start():
                 conn, addr = server.accept()
                 threading.Thread(target=handle_connection, args=(conn, addr), daemon=True).start()
             except Exception as e:
-                print(f"[fssh] accept error: {e}")
+                _emit(
+                    f"[fssh] accept error: {e}",
+                    {"type": "fssh.error", "port": LISTEN_PORT, "error": str(e)},
+                )
 
     threading.Thread(target=accept_loop, daemon=True).start()
     return server  # return so main.py can close it on cleanup

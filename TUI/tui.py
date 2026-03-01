@@ -2,6 +2,7 @@
 """GhostWall terminal dashboard.
 
 Run modes:
+- Live mode (default): sudo venv/bin/python3 TUI/tui.py --interface wlp0s20f3
 - Demo mode: python3 TUI/tui.py --demo
 - Read scanner output from stdin:
     sudo .venv/bin/python scanner.py eth0 | python3 TUI/tui.py --stdin
@@ -15,8 +16,10 @@ import argparse
 import ast
 import curses
 import json
+import os
 import queue
 import random
+import socket
 import sys
 import threading
 import time
@@ -32,6 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from Defense_Solutions.engine import build_defense_actions
+from Defense_Solutions.fport import fssh
 from LLM_Debrief.chatbot import LocalDebrief
 
 
@@ -40,6 +44,11 @@ BASE_EVENT_SCORE = {
     "arp.scan": 28,
     "port.sweep": 45,
     "brute.force": 75,
+    "fssh.route": 18,
+    "fssh.config": 5,
+    "fssh.status": 5,
+    "fssh.warn": 35,
+    "fssh.error": 65,
     "cowrie.login.failed": 55,
     "cowrie.command.input": 70,
     "cowrie.session.file_download": 85,
@@ -281,6 +290,42 @@ def parse_action_line(line: str) -> dict[str, Any] | None:
     if "source" not in data or "severity" not in data:
         return None
     return data
+
+
+def parse_whitelist(value: str) -> list[str]:
+    ips: list[str] = []
+    for raw in value.split(","):
+        ip = raw.strip()
+        if ip:
+            ips.append(ip)
+    return ips
+
+
+def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any]]) -> socket.socket:
+    import scanner
+
+    if os.geteuid() != 0:
+        raise SystemExit("Live mode requires sudo/root (packet sniffing + low port bind).")
+
+    whitelist_ips = parse_whitelist(args.whitelist)
+    force_honeypot_ips = parse_whitelist(args.force_honeypot)
+    fssh.set_log_callback(out_q.put)
+    fssh.LISTEN_PORT = int(args.listen_port)
+    fssh.set_port_map(real_port=int(args.real_ssh_port), honeypot_port=int(args.cowrie_port))
+    fssh.set_whitelist(whitelist_ips)
+    fssh.set_force_honeypot(force_honeypot_ips)
+    try:
+        server = fssh.start()
+    except OSError as exc:
+        if exc.errno == 98:
+            raise SystemExit(
+                f"Cannot bind fssh to :{args.listen_port}; port is already in use. "
+                f"Run: sudo ss -ltnp 'sport = :{args.listen_port}'"
+            ) from exc
+        raise
+
+    scanner.start(args.interface, out_q)
+    return server
 
 
 def start_demo_source(out_q: queue.Queue[dict[str, Any]]) -> threading.Thread:
@@ -670,11 +715,54 @@ def run_dashboard(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="GhostWall TUI dashboard")
+    parser.add_argument("--live", action="store_true", help="Run full live stack in TUI (default mode)")
     parser.add_argument("--demo", action="store_true", help="Generate synthetic attack events")
     parser.add_argument("--stdin", action="store_true", help="Read event objects from stdin")
     parser.add_argument("--follow", type=Path, help="Tail a JSONL-like event file")
-    parser.add_argument("--cowrie-follow", type=Path, help="Tail Cowrie JSON log (cowrie.json)")
-    parser.add_argument("--actions-follow", type=Path, default=Path("defense_actions.jsonl"), help="Tail defense actions JSONL")
+    parser.add_argument(
+        "--interface",
+        default=os.getenv("GHOSTWALL_INTERFACE", "eth0"),
+        help="Interface for live scanner mode (example: wlp0s20f3, eth0, lo)",
+    )
+    parser.add_argument(
+        "--listen-port",
+        type=int,
+        default=int(os.getenv("FSSH_LISTEN_PORT", "22")),
+        help="fssh listen port (default: 22)",
+    )
+    parser.add_argument(
+        "--real-ssh-port",
+        type=int,
+        default=int(os.getenv("FSSH_REAL_SSH_PORT", "47832")),
+        help="Real SSH backend port for whitelisted users",
+    )
+    parser.add_argument(
+        "--cowrie-port",
+        type=int,
+        default=int(os.getenv("DEFENSE_COWRIE_PORT", "2222")),
+        help="Cowrie backend port for non-whitelisted users",
+    )
+    parser.add_argument(
+        "--whitelist",
+        default=os.getenv("FSSH_WHITELIST", ""),
+        help="Comma-separated IP whitelist for real SSH routing",
+    )
+    parser.add_argument(
+        "--force-honeypot",
+        default=os.getenv("FSSH_FORCE_HONEYPOT", ""),
+        help="Comma-separated IPs forced to Cowrie even if whitelisted",
+    )
+    parser.add_argument(
+        "--cowrie-follow",
+        type=Path,
+        help="Tail Cowrie JSON log (default in live mode: ./cowrie-logs/cowrie.json)",
+    )
+    parser.add_argument(
+        "--no-cowrie-follow",
+        action="store_true",
+        help="Disable Cowrie log follow in live mode",
+    )
+    parser.add_argument("--actions-follow", type=Path, help="Tail defense actions JSONL")
     parser.add_argument("--log-file", type=Path, default=Path("ghostwall_tui_logs.txt"), help="Write logs with IDs to text file")
     return parser.parse_args()
 
@@ -683,12 +771,14 @@ def main() -> int:
     args = parse_args()
     event_q: queue.Queue[dict[str, Any]] = queue.Queue()
     action_q: queue.Queue[dict[str, Any]] = queue.Queue()
+    fssh_server: socket.socket | None = None
+    live_mode = False
 
-    selected = [args.demo, args.stdin, bool(args.follow)]
+    selected = [args.live, args.demo, args.stdin, bool(args.follow)]
     if sum(bool(x) for x in selected) > 1:
-        raise SystemExit("Pick one mode: --demo OR --stdin OR --follow <path>")
+        raise SystemExit("Pick one mode: --live OR --demo OR --stdin OR --follow <path>")
 
-    mode_label = "demo"
+    mode_label = "live"
     if args.demo:
         start_demo_source(event_q)
         mode_label = "demo"
@@ -699,14 +789,25 @@ def main() -> int:
         start_follow_source(args.follow, event_q)
         mode_label = f"follow:{args.follow}"
     else:
-        start_demo_source(event_q)
-        mode_label = "demo (default)"
+        live_mode = True
+        fssh_server = start_live_source(args, event_q)
+        mode_label = (
+            f"live:{args.interface} "
+            f"fssh:{args.listen_port} "
+            f"real:{args.real_ssh_port} "
+            f"cowrie:{args.cowrie_port} "
+            f"force:{args.force_honeypot or '-'}"
+        )
 
-    if args.cowrie_follow:
-        if str(args.cowrie_follow).startswith("/path/to/"):
+    cowrie_path = args.cowrie_follow
+    if cowrie_path is None and not args.no_cowrie_follow and live_mode:
+        cowrie_path = Path(os.getenv("COWRIE_JSON_PATH", str(PROJECT_ROOT / "cowrie-logs" / "cowrie.json")))
+    if cowrie_path is not None:
+        if str(cowrie_path).startswith("/path/to/"):
             raise SystemExit("Replace /path/to/cowrie.json with a real file path (example: /tmp/cowrie.json).")
-        start_cowrie_source(args.cowrie_follow, event_q)
-        mode_label = f"{mode_label} + cowrie:{args.cowrie_follow}"
+        start_cowrie_source(cowrie_path, event_q)
+        mode_label = f"{mode_label} + cowrie:{cowrie_path}"
+
     if args.actions_follow:
         start_actions_source(args.actions_follow, action_q)
         mode_label = f"{mode_label} + actions:{args.actions_follow}"
@@ -715,6 +816,13 @@ def main() -> int:
         curses.wrapper(run_dashboard, event_q, action_q, mode_label, args.log_file)
     except KeyboardInterrupt:
         return 0
+    finally:
+        if fssh_server is not None:
+            try:
+                fssh_server.close()
+            except Exception:
+                pass
+        fssh.set_log_callback(None)
     return 0
 
 

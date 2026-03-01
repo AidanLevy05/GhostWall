@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated source IP whitelist for real SSH routing",
     )
     parser.add_argument(
+        "--force-honeypot",
+        default=os.getenv("FSSH_FORCE_HONEYPOT", ""),
+        help="Comma-separated IPs forced to Cowrie even if whitelisted",
+    )
+    parser.add_argument(
         "--show-events",
         action="store_true",
         help="Print raw scanner events as JSON",
@@ -105,6 +110,7 @@ def _fail_bind_help(listen_port: int, exc: OSError) -> int:
 def main() -> int:
     args = parse_args()
     whitelist_ips = parse_whitelist(args.whitelist)
+    force_honeypot_ips = parse_whitelist(args.force_honeypot)
 
     if os.geteuid() != 0:
         print(
@@ -117,6 +123,7 @@ def main() -> int:
     fssh.LISTEN_PORT = int(args.listen_port)
     fssh.set_port_map(real_port=int(args.real_ssh_port), honeypot_port=int(args.cowrie_port))
     fssh.set_whitelist(whitelist_ips)
+    fssh.set_force_honeypot(force_honeypot_ips)
 
     try:
         fssh_server = fssh.start()
@@ -136,6 +143,7 @@ def main() -> int:
         flush=True,
     )
     print(f"[main] whitelist={whitelist_ips}", flush=True)
+    print(f"[main] force_honeypot={force_honeypot_ips}", flush=True)
     print(f"[main] DEFENSE_MODE={os.getenv('DEFENSE_MODE', 'detect')}", flush=True)
     print("[main] CTRL+C to stop", flush=True)
 

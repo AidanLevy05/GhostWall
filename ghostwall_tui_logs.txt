@@ -3107,3 +3107,182 @@
 1772324529 id=223 src=127.0.0.1 event=connect.attempt port=11434 score=12 response=Alert only
 1772324833 id=224 src=127.0.0.1 event=connect.attempt port=40801 score=12 response=Alert only
 1772324833 id=225 src=127.0.0.1 event=connect.attempt port=40801 score=12 response=Alert only
+1772335971 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772335971 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772335971 id=3 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772335975 id=4 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335980 id=5 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335986 id=6 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335987 id=7 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335991 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335992 id=9 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335999 id=10 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772335999 id=11 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336003 id=12 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336012 id=13 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336017 id=14 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336047 id=15 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336066 id=16 src=172.20.10.1 event=arp.scan port=- score=30 response=Open honeypot 15m
+1772336107 id=17 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336144 id=18 src=172.20.10.4 event=connect.attempt port=22 score=17 response=Alert only
+1772336144 id=19 src=172.20.10.4 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336168 id=20 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336185 id=21 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336185 id=22 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336205 id=23 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336214 id=24 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336227 id=25 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336252 id=26 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336252 id=27 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336252 id=28 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336253 id=29 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336256 id=30 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336257 id=31 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336259 id=32 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336262 id=33 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336264 id=34 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336265 id=35 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336265 id=36 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336267 id=37 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336269 id=38 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336269 id=39 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336269 id=40 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336269 id=41 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336272 id=42 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336273 id=43 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336277 id=44 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336280 id=45 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336284 id=46 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336298 id=47 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336313 id=48 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336313 id=49 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336313 id=50 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336313 id=51 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336318 id=52 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336325 id=53 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336327 id=54 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336330 id=55 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336350 id=56 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336357 id=57 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336358 id=58 src=172.20.10.4 event=connect.attempt port=22 score=17 response=Alert only
+1772336358 id=59 src=172.20.10.4 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336371 id=60 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336371 id=61 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336386 id=62 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336389 id=63 src=172.20.10.4 event=connect.attempt port=22 score=17 response=Alert only
+1772336389 id=64 src=172.20.10.4 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336421 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336421 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336421 id=3 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772336430 id=4 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336430 id=5 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336430 id=6 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336433 id=7 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336433 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336433 id=9 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336435 id=10 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336457 id=11 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336458 id=12 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336459 id=13 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336460 id=14 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336461 id=15 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336462 id=16 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336462 id=17 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336464 id=18 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336467 id=19 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336467 id=20 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336468 id=21 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336468 id=22 src=172.20.10.2 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336480 id=23 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336486 id=24 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336486 id=25 src=172.20.10.2 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336509 id=26 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336514 id=27 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336520 id=28 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336523 id=29 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336523 id=30 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336525 id=31 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336526 id=32 src=172.20.10.2 event=connect.attempt port=22 score=17 response=Alert only
+1772336526 id=33 src=172.20.10.2 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336534 id=34 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336541 id=35 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336546 id=36 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336555 id=37 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336557 id=38 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336557 id=39 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336560 id=40 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336569 id=41 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
+1772336570 id=42 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336572 id=43 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336578 id=1 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336578 id=2 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336578 id=3 src=unknown event=fssh.config port=22 score=10 response=Alert only
+1772336578 id=4 src=unknown event=fssh.status port=22 score=10 response=Alert only
+1772336584 id=5 src=172.20.10.4 event=connect.attempt port=22 score=17 response=Alert only
+1772336584 id=6 src=172.20.10.4 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336619 id=7 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336619 id=8 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336619 id=9 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336620 id=10 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336624 id=11 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336630 id=12 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336635 id=13 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336637 id=14 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336656 id=15 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336664 id=16 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336667 id=17 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336684 id=18 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336684 id=19 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336684 id=20 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336689 id=21 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336696 id=22 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336697 id=23 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336701 id=24 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336707 id=25 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336709 id=26 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336711 id=27 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=28 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=29 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=30 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=31 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=32 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=33 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=34 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=35 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=36 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=37 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=38 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=39 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=40 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=41 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=42 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=43 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=44 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=45 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=46 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=47 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=48 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=49 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=50 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=51 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=52 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=53 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=54 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=55 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=56 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=57 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=58 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=59 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=60 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=61 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=62 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=63 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=64 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=65 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336711 id=66 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336722 id=67 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336724 id=68 src=172.20.10.3 event=fssh.route port=22 score=23 response=Open honeypot 15m
+1772336727 id=69 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336743 id=70 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336743 id=71 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
+1772336866 id=72 src=172.20.10.3 event=connect.attempt port=80 score=12 response=Alert only
