@@ -1,8 +1,19 @@
+import os
 import socket
 import threading
 import time
+from collections import defaultdict, deque
 from typing import Any, Callable
 from pathlib import Path
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
 
 # port this fake SSH listens on (the "real" port attackers see)
 LISTEN_PORT = 22
@@ -17,6 +28,10 @@ force_honeypot = set()
 blacklist = set()
 blacklist_file = Path("fssh_blacklist.txt")
 log_callback: Callable[[dict[str, Any]], None] | None = None
+AUTO_BLACKLIST_THRESHOLD = max(0, _env_int("FSSH_AUTO_BLACKLIST_THRESHOLD", 0))
+AUTO_BLACKLIST_WINDOW_SECONDS = max(10, _env_int("FSSH_AUTO_BLACKLIST_WINDOW_SECONDS", 120))
+_route_attempts: dict[str, deque[float]] = defaultdict(deque)
+_route_attempts_lock = threading.Lock()
 
 
 def set_log_callback(callback: Callable[[dict[str, Any]], None] | None) -> None:
@@ -69,6 +84,8 @@ def _save_blacklist() -> None:
 def clear_blacklist() -> None:
     global blacklist
     blacklist = set()
+    with _route_attempts_lock:
+        _route_attempts.clear()
     _save_blacklist()
     _emit(
         "[fssh] blacklist cleared",
@@ -92,6 +109,17 @@ def add_to_blacklist(src_ip: str, reason: str = "honeypot_route") -> None:
             "path": str(blacklist_file),
         },
     )
+
+
+def _record_attacker_route(src_ip: str) -> int:
+    now = time.time()
+    cutoff = now - AUTO_BLACKLIST_WINDOW_SECONDS
+    with _route_attempts_lock:
+        attempts = _route_attempts[src_ip]
+        attempts.append(now)
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        return len(attempts)
 
 
 def _emit(message: str, event: dict[str, Any] | None = None) -> None:
@@ -183,8 +211,14 @@ def proxy(src_conn, target_port, src_ip):
         route = "whitelist"
     else:
         route = "attacker"
+    route_attempt_count = 0
     if route == "attacker":
-        add_to_blacklist(src_ip, reason=route)
+        route_attempt_count = _record_attacker_route(src_ip)
+        if AUTO_BLACKLIST_THRESHOLD > 0 and route_attempt_count >= AUTO_BLACKLIST_THRESHOLD:
+            add_to_blacklist(
+                src_ip,
+                reason=f"attacker_route_threshold:{route_attempt_count}/{AUTO_BLACKLIST_WINDOW_SECONDS}s",
+            )
     _emit(
         f"[fssh] {route.upper()} {src_ip} → port {target_port}",
         {
@@ -193,6 +227,8 @@ def proxy(src_conn, target_port, src_ip):
             "port": LISTEN_PORT,
             "target_port": int(target_port),
             "route": route,
+            "route_attempt_count": route_attempt_count,
+            "auto_blacklist_threshold": AUTO_BLACKLIST_THRESHOLD,
         },
     )
 
@@ -266,6 +302,18 @@ def start():
     _emit(
         f"[fssh] blacklist active: {len(blacklist)} IPs",
         {"type": "fssh.blacklist", "event": "active", "count": len(blacklist), "path": str(blacklist_file)},
+    )
+    _emit(
+        (
+            f"[fssh] auto-blacklist threshold: "
+            f"{AUTO_BLACKLIST_THRESHOLD} attempts / {AUTO_BLACKLIST_WINDOW_SECONDS}s"
+        ),
+        {
+            "type": "fssh.config",
+            "port": LISTEN_PORT,
+            "auto_blacklist_threshold": AUTO_BLACKLIST_THRESHOLD,
+            "auto_blacklist_window_seconds": AUTO_BLACKLIST_WINDOW_SECONDS,
+        },
     )
 
     def accept_loop():

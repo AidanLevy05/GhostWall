@@ -134,23 +134,8 @@ class DefensePolicy:
                 "timeout;",
                 "}",
             ],
-            [
-                "nft",
-                "add",
-                "rule",
-                "ip",
-                "ghostwall_nat",
-                "prerouting",
-                "ip",
-                "saddr",
-                "@ssh_redirect_sources",
-                "tcp",
-                "dport",
-                "22",
-                "dnat",
-                "to",
-                f"{target_host}:{target_port}",
-            ],
+            ["nft", "flush", "chain", "ip", "ghostwall_nat", "prerouting"],
+            _nft_ssh_redirect_rule_command(target_host=target_host, target_port=target_port),
         ]
 
         for command in commands:
@@ -203,3 +188,53 @@ def _nft_add_redirect_source_command(src_ip: str, duration_seconds: int) -> list
     if os.geteuid() == 0:
         return base
     return ["sudo", "-n", *base]
+
+
+def _is_loopback_target(host: str) -> bool:
+    value = host.strip().lower()
+    if value == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+def _nft_ssh_redirect_rule_command(*, target_host: str, target_port: int) -> list[str]:
+    safe_port = max(1, min(65535, int(target_port)))
+    if _is_loopback_target(target_host):
+        return [
+            "nft",
+            "add",
+            "rule",
+            "ip",
+            "ghostwall_nat",
+            "prerouting",
+            "ip",
+            "saddr",
+            "@ssh_redirect_sources",
+            "tcp",
+            "dport",
+            "22",
+            "redirect",
+            "to",
+            f":{safe_port}",
+        ]
+
+    return [
+        "nft",
+        "add",
+        "rule",
+        "ip",
+        "ghostwall_nat",
+        "prerouting",
+        "ip",
+        "saddr",
+        "@ssh_redirect_sources",
+        "tcp",
+        "dport",
+        "22",
+        "dnat",
+        "to",
+        f"{target_host}:{safe_port}",
+    ]

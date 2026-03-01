@@ -18,6 +18,7 @@ import time
 from typing import Any
 
 import scanner
+from Defense_Solutions.FTP import ftp as ftp_honeypot
 from Defense_Solutions.engine import build_defense_actions
 from Defense_Solutions.fport import fssh
 
@@ -47,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=int(os.getenv("DEFENSE_COWRIE_PORT", "2222")),
         help="Local Cowrie SSH port for non-whitelisted users",
+    )
+    parser.add_argument(
+        "--ftp-port",
+        type=int,
+        default=int(os.getenv("FTP_HONEYPOT_PORT", "21")),
+        help="FTP honeypot listen port",
     )
     parser.add_argument(
         "--whitelist",
@@ -145,6 +152,21 @@ def main() -> int:
         return _fail_bind_help(int(args.listen_port), exc)
 
     q: "queue.Queue[dict[str, Any]]" = queue.Queue()
+    ftp_server = None
+    ftp_honeypot.LISTEN_PORT = int(args.ftp_port)
+    try:
+        ftp_server = ftp_honeypot.start(q)
+    except OSError as exc:
+        print(
+            f"[main] ftp honeypot bind failed on :{args.ftp_port}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        try:
+            fssh_server.close()
+        except Exception:
+            pass
+        return 3
     scanner.start(args.interface, q)
 
     print(
@@ -152,7 +174,8 @@ def main() -> int:
             f"[main] interface={args.interface} "
             f"listen_port={args.listen_port} "
             f"real_ssh_port={args.real_ssh_port} "
-            f"cowrie_port={args.cowrie_port}"
+            f"cowrie_port={args.cowrie_port} "
+            f"ftp_port={args.ftp_port}"
         ),
         flush=True,
     )
@@ -180,6 +203,11 @@ def main() -> int:
             fssh_server.close()
         except Exception:
             pass
+        if ftp_server is not None:
+            try:
+                ftp_server.close()
+            except Exception:
+                pass
 
     return 0
 

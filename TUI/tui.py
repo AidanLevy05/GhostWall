@@ -35,6 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from Defense_Solutions.engine import build_defense_actions
+from Defense_Solutions.FTP import ftp as ftp_honeypot
 from Defense_Solutions.fport import fssh
 from LLM_Debrief.chatbot import LocalDebrief
 
@@ -58,6 +59,11 @@ BASE_EVENT_SCORE = {
 
 FSSH_BLACKLIST_HOUSEKEEPING_EVENTS = {"loaded", "cleared", "active"}
 SYSTEM_SRC = "system"
+CONNECT_BURST_WINDOW_SECONDS = 30.0
+SSH_BURST_WINDOW_SECONDS = 60.0
+SWEEP_BURST_WINDOW_SECONDS = 20.0
+THREAT_AVG_WINDOW = 80
+THREAT_PEAK_WINDOW = 20
 
 
 class DashboardState:
@@ -104,6 +110,39 @@ class DashboardState:
             return False
         return src_ip in self.trusted_sources
 
+    def _recent_connect_signals(self, src_ip: str, now: float, current_port: int | None) -> tuple[int, int, int]:
+        # Count same-source connection attempts in short windows to turn bursts
+        # (SSH spray/Nmap sweep) into higher per-event threat scores.
+        recent_connects = 1
+        recent_ssh = 1 if current_port == 22 else 0
+        distinct_ports: set[int] = {current_port} if isinstance(current_port, int) else set()
+
+        for existing in self.recent_events:
+            if str(existing.get("type", "")) != "connect.attempt":
+                continue
+            if str(existing.get("src_ip", "")) != src_ip:
+                continue
+
+            ts_raw = existing.get("timestamp", 0.0)
+            try:
+                ts = float(ts_raw)
+            except (TypeError, ValueError):
+                continue
+
+            age = now - ts
+            if age < 0:
+                continue
+
+            port = existing.get("port")
+            if age <= CONNECT_BURST_WINDOW_SECONDS:
+                recent_connects += 1
+            if age <= SSH_BURST_WINDOW_SECONDS and port == 22:
+                recent_ssh += 1
+            if age <= SWEEP_BURST_WINDOW_SECONDS and isinstance(port, int):
+                distinct_ports.add(port)
+
+        return recent_connects, recent_ssh, len(distinct_ports)
+
     def _score_event(self, event: dict[str, Any]) -> int:
         if self._is_trusted_source(event):
             return 0
@@ -126,6 +165,36 @@ class DashboardState:
         port = event.get("port")
         if port == 22:
             base += 5
+
+        if event_type == "connect.attempt":
+            src_ip_raw = event.get("src_ip")
+            if isinstance(src_ip_raw, str) and src_ip_raw.strip():
+                src_ip = src_ip_raw.strip()
+                now = float(event.get("timestamp", time.time()))
+                current_port = port if isinstance(port, int) else None
+                recent_connects, recent_ssh, distinct_ports = self._recent_connect_signals(src_ip, now, current_port)
+
+                if recent_connects >= 6:
+                    base += 10
+                if recent_connects >= 12:
+                    base += 18
+                if recent_connects >= 20:
+                    base += 28
+
+                if current_port == 22:
+                    if recent_ssh >= 5:
+                        base += 14
+                    if recent_ssh >= 10:
+                        base += 24
+                    if recent_ssh >= 20:
+                        base += 35
+
+                if distinct_ports >= 8:
+                    base = max(base, 55)
+                if distinct_ports >= 15:
+                    base = max(base, 70)
+                if distinct_ports >= 25:
+                    base = max(base, 85)
 
         return max(0, min(99, base))
 
@@ -211,7 +280,22 @@ class DashboardState:
     def average_weighted_threat(self) -> float:
         if not self.recent_scores:
             return 0.0
-        return sum(self.recent_scores) / len(self.recent_scores)
+
+        recent = list(self.recent_scores)[:THREAT_AVG_WINDOW]
+        if not recent:
+            return 0.0
+
+        # Emphasize newer events while still keeping some history.
+        weights = [0.95 ** idx for idx in range(len(recent))]
+        weighted_avg = sum(score * weight for score, weight in zip(recent, weights)) / sum(weights)
+
+        peak_window = recent[:THREAT_PEAK_WINDOW]
+        peak_score = max(peak_window) if peak_window else 0
+        high_count = sum(1 for score in peak_window if score >= 50)
+
+        # Blend sustained pressure with recent peak severity.
+        blended = (weighted_avg * 0.7) + (peak_score * 0.3) + min(20.0, high_count * 2.0)
+        return min(99.0, blended)
 
     def current_attack_count(self, window_seconds: int = 30) -> int:
         cutoff = time.time() - window_seconds
@@ -334,7 +418,7 @@ def parse_whitelist(value: str) -> list[str]:
     return ips
 
 
-def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any]]) -> socket.socket:
+def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any]]) -> tuple[socket.socket, socket.socket]:
     import scanner
 
     if os.geteuid() != 0:
@@ -352,7 +436,7 @@ def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any
     fssh.set_whitelist(whitelist_ips)
     fssh.set_force_honeypot(force_honeypot_ips)
     try:
-        server = fssh.start()
+        fssh_server = fssh.start()
     except OSError as exc:
         if exc.errno == 98:
             raise SystemExit(
@@ -361,8 +445,23 @@ def start_live_source(args: argparse.Namespace, out_q: queue.Queue[dict[str, Any
             ) from exc
         raise
 
+    ftp_honeypot.LISTEN_PORT = int(args.ftp_port)
+    try:
+        ftp_server = ftp_honeypot.start(out_q)
+    except OSError as exc:
+        try:
+            fssh_server.close()
+        except Exception:
+            pass
+        if exc.errno == 98:
+            raise SystemExit(
+                f"Cannot bind FTP honeypot to :{args.ftp_port}; port is already in use. "
+                f"Run: sudo ss -ltnp 'sport = :{args.ftp_port}'"
+            ) from exc
+        raise
+
     scanner.start(args.interface, out_q)
-    return server
+    return fssh_server, ftp_server
 
 
 def start_demo_source(out_q: queue.Queue[dict[str, Any]]) -> threading.Thread:
@@ -781,6 +880,12 @@ def parse_args() -> argparse.Namespace:
         help="Cowrie backend port for non-whitelisted users",
     )
     parser.add_argument(
+        "--ftp-port",
+        type=int,
+        default=int(os.getenv("FTP_HONEYPOT_PORT", "21")),
+        help="FTP honeypot listen port",
+    )
+    parser.add_argument(
         "--whitelist",
         default=os.getenv("FSSH_WHITELIST", ""),
         help="Comma-separated IP whitelist for real SSH routing",
@@ -820,6 +925,7 @@ def main() -> int:
     event_q: queue.Queue[dict[str, Any]] = queue.Queue()
     action_q: queue.Queue[dict[str, Any]] = queue.Queue()
     fssh_server: socket.socket | None = None
+    ftp_server: socket.socket | None = None
     live_mode = False
     trusted_sources: set[str] = set()
 
@@ -842,12 +948,13 @@ def main() -> int:
         whitelist_ips = set(parse_whitelist(args.whitelist))
         force_honeypot_ips = set(parse_whitelist(args.force_honeypot))
         trusted_sources = whitelist_ips - force_honeypot_ips
-        fssh_server = start_live_source(args, event_q)
+        fssh_server, ftp_server = start_live_source(args, event_q)
         mode_label = (
             f"live:{args.interface} "
             f"fssh:{args.listen_port} "
             f"real:{args.real_ssh_port} "
             f"cowrie:{args.cowrie_port} "
+            f"ftp:{args.ftp_port} "
             f"force:{args.force_honeypot or '-'} "
             f"bl:{args.blacklist_file}"
         )
@@ -873,6 +980,11 @@ def main() -> int:
         if fssh_server is not None:
             try:
                 fssh_server.close()
+            except Exception:
+                pass
+        if ftp_server is not None:
+            try:
+                ftp_server.close()
             except Exception:
                 pass
         fssh.set_log_callback(None)
