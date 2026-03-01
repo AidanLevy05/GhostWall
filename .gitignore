@@ -1,0 +1,5 @@
+
+# runtime/log files
+defense_actions.jsonl
+fssh_blacklist.txt
+ghostwall_tui_logs.txt
