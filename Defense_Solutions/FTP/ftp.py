@@ -1,6 +1,122 @@
 import socket
 import threading
 import time
+from collections import defaultdict, deque
+from typing import Any
+
+from Defense_Solutions.common import CooldownGate, make_action, normalize_event
+
+
+class FTPDefense:
+    FTP_PORTS = {21}
+    WINDOW_SECONDS = 60
+    PROBE_THRESHOLD = 8
+    BLOCK_SECONDS = 15 * 60
+
+    def __init__(self) -> None:
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._cooldown = CooldownGate(cooldown_seconds=20)
+
+    def _record_hit(self, src_ip: str, now: float) -> int:
+        hit_list = self._hits[src_ip]
+        hit_list.append(now)
+        cutoff = now - self.WINDOW_SECONDS
+        while hit_list and hit_list[0] < cutoff:
+            hit_list.popleft()
+        return len(hit_list)
+
+    def evaluate(self, event: dict[str, Any]) -> list[dict[str, Any]]:
+        ev = normalize_event(event)
+        event_type = ev.event_type
+        src_ip = ev.src_ip
+        port = ev.port
+        now = ev.timestamp
+        actions: list[dict[str, Any]] = []
+
+        if event_type == "connect.attempt" and port in self.FTP_PORTS:
+            count = self._record_hit(src_ip, now)
+            if self._cooldown.allow(f"ftp.observe:{src_ip}", now):
+                actions.append(
+                    make_action(
+                        source="ftp",
+                        severity="low" if count < self.PROBE_THRESHOLD else "high",
+                        summary=f"FTP probe from {src_ip} on port {port} ({count}/{self.WINDOW_SECONDS}s).",
+                        src_ip=src_ip,
+                        event_type=event_type,
+                        commands=[
+                            "review FTP auth logs for repeated credential attempts",
+                            "confirm anonymous login is disabled",
+                        ],
+                        confidence=0.6 if count < self.PROBE_THRESHOLD else 0.86,
+                        tags=["ftp", "probe"],
+                    )
+                )
+
+            if count >= self.PROBE_THRESHOLD and self._cooldown.allow(f"ftp.block:{src_ip}", now):
+                actions.append(
+                    make_action(
+                        source="ftp",
+                        severity="high",
+                        summary=f"FTP spray threshold exceeded for {src_ip} ({count}/{self.WINDOW_SECONDS}s).",
+                        src_ip=src_ip,
+                        event_type=event_type,
+                        commands=[
+                            "temporarily block source IP at firewall",
+                            "inspect FTP daemon logs for credential stuffing",
+                        ],
+                        confidence=0.92,
+                        tags=["ftp", "spray", "block"],
+                        mitigation={
+                            "type": "block_ip",
+                            "backend": "nftables",
+                            "duration_seconds": self.BLOCK_SECONDS,
+                            "reason": "ftp_high_rate_probe",
+                        },
+                    )
+                )
+
+        if event_type == "port.sweep":
+            if any(p in self.FTP_PORTS for p in ev.ports) and self._cooldown.allow(f"ftp.sweep:{src_ip}", now):
+                actions.append(
+                    make_action(
+                        source="ftp",
+                        severity="medium",
+                        summary=f"Port sweep touching FTP service from {src_ip}.",
+                        src_ip=src_ip,
+                        event_type=event_type,
+                        commands=[
+                            "review source reputation and prior failed FTP auth history",
+                            "increase FTP logging verbosity temporarily",
+                        ],
+                        confidence=0.8,
+                        tags=["ftp", "sweep"],
+                    )
+                )
+
+        if event_type == "brute.force" and port in self.FTP_PORTS and self._cooldown.allow(f"ftp.bruteforce:{src_ip}", now):
+            actions.append(
+                make_action(
+                    source="ftp",
+                    severity="high",
+                    summary=f"Possible FTP brute-force from {src_ip} on port {port}.",
+                    src_ip=src_ip,
+                    event_type=event_type,
+                    commands=[
+                        "block source IP for 15 minutes",
+                        "rotate exposed FTP credentials and review access logs",
+                    ],
+                    confidence=0.95,
+                    tags=["ftp", "bruteforce"],
+                    mitigation={
+                        "type": "block_ip",
+                        "backend": "nftables",
+                        "duration_seconds": self.BLOCK_SECONDS,
+                        "reason": "ftp_bruteforce_detected",
+                    },
+                )
+            )
+
+        return actions
 
 # this is where fftp.py sends attackers
 # logs everything they do, keeps them engaged as long as possible
