@@ -1,11 +1,40 @@
 services:
-  cowrie:
+  ghostwall-cowrie:
     image: cowrie/cowrie:latest
     container_name: ghostwall-cowrie
-    restart: unless-stopped
     ports:
-      - "127.0.0.1:2222:2222"
-      - "127.0.0.1:2223:2223"
+      - "2222:2222"
     volumes:
-      - ./cowrie-logs:/cowrie/cowrie-git/var/log/cowrie
-      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
+      - cowrie-logs:/cowrie/var/log/cowrie
+    environment:
+      - COWRIE_TELNET_ENABLED=no
+    restart: unless-stopped
+    networks:
+      - shield-net
+
+  ghostwall-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: ghostwall-app
+    ports:
+      - "8000:8000"
+    volumes:
+      - cowrie-logs:/cowrie-logs:ro
+    environment:
+      - COWRIE_LOG_PATH=/cowrie-logs/cowrie.json
+      - DB_PATH=/data/shield.db
+      - DRY_RUN=true
+    depends_on:
+      - ghostwall-cowrie
+    restart: unless-stopped
+    networks:
+      - shield-net
+
+volumes:
+  cowrie-logs:
+  app-data:
+
+networks:
+  shield-net:
+    driver: bridge
