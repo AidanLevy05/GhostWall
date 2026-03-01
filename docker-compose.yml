@@ -1,0 +1,11 @@
+services:
+  cowrie:
+    image: cowrie/cowrie:latest
+    container_name: ghostwall-cowrie
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2222:2222"
+      - "127.0.0.1:2223:2223"
+    volumes:
+      - ./cowrie-logs:/cowrie/cowrie-git/var/log/cowrie
+      - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro

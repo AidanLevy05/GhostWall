@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+from typing import Optional
 
 # port this fake SSH listens on (the "real" port attackers see)
 LISTEN_PORT = 22
@@ -21,7 +22,7 @@ port_map = {}
 whitelist = set()
 
 
-def set_port_map(real_port, honeypot_port): # From handle.py
+def set_port_map(real_port, honeypot_port):  # From handler.py
     global port_map
     port_map = {
         "real": real_port,
@@ -42,6 +43,26 @@ def get_target_port(src_ip):
     return port_map.get("honeypot")
 
 
+def _drain_backend_banner(dst_conn: socket.socket) -> Optional[bytes]:
+    """Read and discard backend SSH banner to prevent double SSH banner to client."""
+    try:
+        dst_conn.settimeout(2.0)
+        line = b""
+        while b"\n" not in line and len(line) < 512:
+            chunk = dst_conn.recv(1)
+            if not chunk:
+                break
+            line += chunk
+        return line or None
+    except Exception:
+        return None
+    finally:
+        try:
+            dst_conn.settimeout(None)
+        except Exception:
+            pass
+
+
 def proxy(src_conn, target_port, src_ip):
     """forwards traffic between the client and whatever port we decided to send them to"""
     try:
@@ -51,6 +72,7 @@ def proxy(src_conn, target_port, src_ip):
         src_conn.close()
         return
 
+    _drain_backend_banner(dst_conn)
     print(f"[fssh] {'WHITELIST' if src_ip in whitelist else 'ATTACKER'} {src_ip} → port {target_port}")
 
     def forward(a, b):
@@ -124,19 +146,19 @@ def start():
 
 
 # test standalone
-# if __name__ == "__main__":
-#     # fake setup mimicking what handler.py will do on real startup
-#     set_port_map(real_port=47832, honeypot_port=2222)
-#     set_whitelist(["127.0.0.1"])  # loopback is whitelisted for local testing
+if __name__ == "__main__":
+    # fake setup mimicking what handler.py will do on real startup
+    set_port_map(real_port=47832, honeypot_port=2222)
+    set_whitelist(["172.20.10.3"])  # loopback is whitelisted for local testing
 
-#     s = start()
-#     print("connecting from 127.0.0.1 will go to port 47832 (real)")
-#     print("any other IP will go to port 2222 (cowrie)")
-#     print("test with: ssh -p 22 127.0.0.1")
+    s = start()
+    print("whitelisted IPs -> port 47832 (real SSH)")
+    print("non-whitelisted IPs -> port 2222 (Cowrie)")
+    print("test with: ssh -p 22 <this-host-lan-ip>")
 
-#     try:
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         print("\n[fssh] shutting down")
-#         s.close()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[fssh] shutting down")
+        s.close()
