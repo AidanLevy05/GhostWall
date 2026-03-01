@@ -3439,3 +3439,6 @@
 1772338734 id=64 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
 1772338734 id=65 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
 1772338766 id=66 src=172.20.10.3 event=connect.attempt port=22 score=17 response=Alert only
+1772338775 id=67 src=172.20.10.3 event=connect.attempt port=22 score=17 response=Alert only
+1772338778 id=68 src=172.20.10.3 event=connect.attempt port=22 score=17 response=Alert only
+1772338785 id=69 src=172.20.10.3 event=connect.attempt port=443 score=12 response=Alert only
