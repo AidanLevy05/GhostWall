@@ -100,6 +100,16 @@ def handle_connection(conn, addr):
     # hand off to proxy
     proxy(conn, target_port, src_ip)
 
+def accept_loop():
+    while True:
+        try:
+            conn, addr = server.accept()
+            threading.Thread(target=handle_connection, args=(conn, addr), daemon=True).start()
+        except Exception as e:
+            print(f"[fssh] accept error: {e}")
+        threading.Thread(target=accept_loop, daemon=True).start()
+        return server  # return so main.py can close it on cleanup
+
 
 def start():
     if not port_map:
@@ -111,16 +121,6 @@ def start():
     server.listen(10)
     print(f"[fssh] fake SSH listening on port {LISTEN_PORT}")
 
-    def accept_loop():
-        while True:
-            try:
-                conn, addr = server.accept()
-                threading.Thread(target=handle_connection, args=(conn, addr), daemon=True).start()
-            except Exception as e:
-                print(f"[fssh] accept error: {e}")
-
-    threading.Thread(target=accept_loop, daemon=True).start()
-    return server  # return so main.py can close it on cleanup
 
 
 # test standalone
