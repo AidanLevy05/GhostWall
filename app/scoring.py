@@ -81,6 +81,7 @@ class ThreatState:
     top_ips: list[tuple[str, int]] = field(default_factory=list)
     top_users: list[tuple[str, int]] = field(default_factory=list)
     actions: list[str] = field(default_factory=list)
+    reset_at: float = 0.0  # epoch time of last manual reset; events before this are ignored
 
 
 _state = ThreatState()
@@ -91,9 +92,14 @@ def get_state() -> ThreatState:
 
 
 def reset_score() -> None:
-    """Manually force the threat score to 0, overriding decay."""
+    """Manually force the threat score to 0, overriding decay.
+
+    Records the reset timestamp so the scoring loop ignores pre-reset
+    events instead of immediately recalculating back to the old value.
+    """
     _state.score = 0.0
     _state.level = "GREEN"
+    _state.reset_at = time.time()
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +185,10 @@ async def scoring_loop() -> None:
 
     while True:
         try:
-            # Pull events from the last hour (enough for all windows)
-            since = time.time() - 3600
+            # Pull events from the last hour, but never before the last manual
+            # reset — this prevents a reset from immediately snapping back to
+            # the pre-reset score because old events are still in the DB.
+            since = max(time.time() - 3600, _state.reset_at)
             events = await db.fetch_events_since(since)
 
             metrics = _compute_metrics(events)
